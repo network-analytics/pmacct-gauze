@@ -7,6 +7,5 @@ tab_width = 4
 style = "Type"
 language = "C"
 
-[export]
-prefix = "NETGAUZE_"
-
+[parse]
+exclude = ["libc", "pmacct-gauze-bindings"]

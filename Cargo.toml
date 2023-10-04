@@ -1,21 +1,7 @@
-[package]
-name = "pmacct-gauze"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+    "crates/pmacct-gauze-lib",
+    "crates/pmacct-gauze-bindings"
+]
 
-build = "build.rs"
-
-[build-dependencies]
-bindgen = "0.68.1"
-quote = "1.0.33"
-
-[dependencies]
-cargo-c = { version = "0.9.24" }
-libc = "0.2.148"
-netgauze-parse-utils = "0.1.0"
-netgauze-bmp-pkt = "0.1.0"
-nom = "7.1.3"
-
-[features]
-capi = []
-source-bindings = []
+resolver = "2"
