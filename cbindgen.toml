@@ -1,0 +1,7 @@
+header = "// SPDX-License-Identifier: MIT"
+sys_includes = ["stddef.h", "stdint.h", "stdlib.h", "stdbool.h"]
+no_includes = true
+include_guard = "UWE_RUST_LIB_H"
+tab_width = 4
+style = "Type"
+language = "C"
