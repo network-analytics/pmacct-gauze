@@ -5,7 +5,7 @@ use libc;
 use nom::{AsBytes, Offset};
 
 #[no_mangle]
-pub extern "C"  fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
+pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
 
     let s = unsafe { slice::from_raw_parts(buffer as *const u8, len as usize) };
     let span = Span::new(s);
@@ -20,6 +20,6 @@ pub extern "C"  fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) 
 }
 
 #[no_mangle]
-pub extern "C" fn nonce2() {
+pub extern "C" fn nonce1() {
 
 }

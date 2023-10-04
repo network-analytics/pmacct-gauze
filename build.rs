@@ -49,18 +49,23 @@ fn main() {
         .write_to_file(&out_path)
         .expect("Couldn't write bindings!");
 
-    prepend_file(warning_allows.to_string().as_ref(), &out_path)
-        .expect("Couldn't write bindings allows!");
-
+    if cfg!(feature = "source-bindings") {
+        prepend_file(warning_allows.to_string().as_ref(), &out_path, true)
+            .expect("Couldn't write bindings allows!");
+    }
 }
 
-fn prepend_file<P: AsRef<Path> + ?Sized>(data: &[u8], path: &P) -> Result<(), Box<dyn Error>> {
+fn prepend_file<P: AsRef<Path> + ?Sized>(data: &[u8], path: &P, line_break: bool) -> Result<(), Box<dyn Error>> {
     let mut f =  File::open(path)?;
     let mut content = data.to_owned();
     f.read_to_end(&mut content)?;
 
     let mut f = File::create(path)?;
     f.write_all(content.as_slice())?;
+
+    if line_break {
+        f.write_all(b"\n")?;
+    }
 
     Ok(())
 }

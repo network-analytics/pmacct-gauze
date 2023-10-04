@@ -1,7 +1,12 @@
+# https://github.com/mozilla/cbindgen/blob/master/docs.md
 header = "// SPDX-License-Identifier: MIT"
 sys_includes = ["stddef.h", "stdint.h", "stdlib.h", "stdbool.h"]
-no_includes = true
-include_guard = "UWE_RUST_LIB_H"
+no_includes = false
+include_guard = "NETGAUZE_RUST_LIB_H"
 tab_width = 4
 style = "Type"
 language = "C"
+
+[export]
+prefix = "NETGAUZE_"
+
