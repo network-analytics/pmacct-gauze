@@ -3,7 +3,7 @@ use netgauze_parse_utils::{ReadablePdu, Span};
 use netgauze_bmp_pkt::BmpMessage;
 use libc;
 use nom::Offset;
-use pmacct_gauze_bindings::bmp_common_hdr;
+use pmacct_gauze_bindings::{bmp_common_hdr};
 
 #[no_mangle]
 pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
@@ -64,6 +64,6 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, len: u32) -
 }
 
 #[no_mangle]
-pub extern "C" fn nonce2() {
+pub extern "C" fn nonce6() {
 
 }

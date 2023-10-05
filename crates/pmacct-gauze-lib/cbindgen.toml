@@ -9,3 +9,6 @@ language = "C"
 
 [parse]
 exclude = ["libc", "pmacct-gauze-bindings"]
+
+[export.rename]
+"bmp_common_hdr" = "struct bmp_common_hdr"
