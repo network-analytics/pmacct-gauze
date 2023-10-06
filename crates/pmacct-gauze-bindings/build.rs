@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
-use std::fs::File;
-use std::io::{Read, Write};
+use std::fs::OpenOptions;
+use std::io::{Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use bindgen::CompKind;
@@ -56,6 +56,7 @@ impl NameMapping {
     }
 }
 
+// TODO make this into a standalone library
 #[derive(Debug, Default)]
 struct NameMappings {
     types: HashMap<Type, NameMapping>,
@@ -83,7 +84,7 @@ impl NameMappings {
                 writeln!(&mut result, "\"{}\" = \"{}\"", mapping.rust_name, use_name)?;
             } else {
                 eprintln!("Warn: type with no valid name during rename export! id={} info={:#?}", id.0, mapping);
-                continue
+                continue;
             }
         }
 
@@ -186,7 +187,7 @@ fn main() {
         .parse_callbacks(Box::new(ignored_macros))
         .parse_callbacks(name_mappings_cb)
         //.c_naming(true)
-        .depfile("netgauze", "/tmp/depfile")
+        //.depfile("netgauze", "/tmp/depfile")
         .allowlist_file("/usr/local/include/pmacct/src/bmp/bmp.h")
         // Finish the builder and generate the bindings.
         .generate()
@@ -196,43 +197,46 @@ fn main() {
     let mut name_mappings = name_mappings.take();
     name_mappings.forget_unused_aliases();
     println!("discovered mappings = {:#?}", name_mappings);
-    println!("generated renames [no aliases] = \n{}", name_mappings.to_cbindgen_toml_renames(false).unwrap());
-    println!("generated renames [yes aliases] = \n{}", name_mappings.to_cbindgen_toml_renames(true).unwrap());
+    let bindings_renames = name_mappings.to_cbindgen_toml_renames(false).unwrap();
+    println!("generated renames [no aliases] = \n{}", bindings_renames);
+    let bindings_renames_aliased = name_mappings.to_cbindgen_toml_renames(true).unwrap();
+    println!("generated renames [yes aliases] = \n{}", bindings_renames_aliased);
 
     // Write the bindings to the src/bindings.rs file because we want autocomplete in our IDE.
-    let out_path = if cfg!(feature = "source-bindings") {
-        PathBuf::from("src")
-    } else {
-        PathBuf::from(env::var("OUT_DIR").unwrap())
-    };
-    let out_path = out_path.join("bindings.rs");
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
 
-    println!("Output path for bindings : {:?}", out_path);
-
-    let warning_allows = quote! {
-        #![allow(non_upper_case_globals)]
-        #![allow(non_camel_case_types)]
-        #![allow(non_snake_case)]
-        #![allow(improper_ctypes)]
-    };
+    println!("Using file output to : {:?}", &out_path);
 
     bindings
         .write_to_file(&out_path)
         .expect("Couldn't write bindings!");
 
-    if cfg!(feature = "source-bindings") {
-        prepend_file(warning_allows.to_string().as_ref(), &out_path, true)
-            .expect("Couldn't write bindings allows!");
+    if cfg!(feature = "export-renames") {
+        let export_renames = quote! {
+            pub fn get_bindings_renames_aliased() -> &'static str {
+                #bindings_renames_aliased
+            }
+
+            pub fn get_bindings_renames() -> &'static str {
+                #bindings_renames
+            }
+        };
+        append_file(export_renames.to_string().as_ref(), &out_path, true)
+            .expect("Couldn't write bindings renames!");
+
+        println!("Added export renames for cbindgen.toml!")
     }
+
+    println!("Output path for bindings : {:?}", out_path);
 }
 
-fn prepend_file<P: AsRef<Path> + ?Sized>(data: &[u8], path: &P, line_break: bool) -> Result<(), Box<dyn Error>> {
-    let mut f = File::open(path)?;
-    let mut content = data.to_owned();
-    f.read_to_end(&mut content)?;
+fn append_file<P: AsRef<Path> + ?Sized>(data: &[u8], path: &P, line_break: bool) -> Result<(), Box<dyn Error>> {
+    let mut f = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(path)?;
 
-    let mut f = File::create(path)?;
-    f.write_all(content.as_slice())?;
+    f.write_all(data)?;
 
     if line_break {
         f.write_all(b"\n")?;

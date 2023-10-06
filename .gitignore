@@ -1,3 +1,2 @@
 /target
 /crates/pmacct-gauze-lib/Cargo.lock
-crates/*/src/bindings.rs

@@ -9,3 +9,6 @@ build = "build.rs"
 bindgen = { git = "https://github.com/mxyns/rust-bindgen", branch = "extended-callbacks", version = "0.68.1" }
 proc-macro2 = "1.0.67"
 quote = "1.0.33"
+
+[features]
+export-renames = []

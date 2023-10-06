@@ -64,6 +64,6 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, len: u32) -
 }
 
 #[no_mangle]
-pub extern "C" fn nonce6() {
+pub extern "C" fn nonce8() {
 
 }
