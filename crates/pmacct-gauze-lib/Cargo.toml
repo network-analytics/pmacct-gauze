@@ -6,10 +6,8 @@ edition = "2021"
 build = "build.rs"
 
 [build-dependencies]
-pmacct-gauze-bindings = { path = "../pmacct-gauze-bindings", features = ["export-renames"] }
-toml = "0.8.2"
-toml_edit = "0.20.2"
-if_chain = "1.0.2"
+pmacct-gauze-bindings = { path = "../pmacct-gauze-bindings", features = ["static-renames"] }
+bindgen-bridge = { git = "https://github.com/mxyns/bindgen-bridge" }
 
 [dependencies]
 libc = "0.2.148"

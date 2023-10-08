@@ -7,8 +7,13 @@ build = "build.rs"
 
 [build-dependencies]
 bindgen = { git = "https://github.com/mxyns/rust-bindgen", branch = "extended-callbacks", version = "0.68.1" }
-proc-macro2 = "1.0.67"
+bindgen-bridge = { git = "https://github.com/mxyns/bindgen-bridge" }
+phf_codegen = { version = "0.11.2", optional = true }
 quote = "1.0.33"
+
+[dependencies]
+phf = "0.11.2"
 
 [features]
 export-renames = []
+static-renames = ["phf_codegen", "export-renames"]

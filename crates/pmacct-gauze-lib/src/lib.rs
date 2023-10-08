@@ -1,4 +1,3 @@
-
 #[cfg(feature = "capi")]
 pub mod c_api;
 

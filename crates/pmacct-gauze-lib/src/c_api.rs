@@ -1,13 +1,12 @@
-use std::slice;
-use netgauze_parse_utils::{ReadablePdu, Span};
-use netgauze_bmp_pkt::BmpMessage;
 use libc;
+use netgauze_bmp_pkt::BmpMessage;
+use netgauze_parse_utils::{ReadablePdu, Span};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr};
+use pmacct_gauze_bindings::bmp_common_hdr;
+use std::slice;
 
 #[no_mangle]
 pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
-
     let s = unsafe { slice::from_raw_parts(buffer as *const u8, len as usize) };
     let span = Span::new(s);
     if let Ok((end_span, msg)) = BmpMessage::from_wire(span) {
@@ -22,7 +21,7 @@ pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -
 #[repr(C)]
 pub struct ParseResult {
     read_bytes: u32,
-    common_header: bmp_common_hdr
+    common_header: bmp_common_hdr,
 }
 
 // TODO find a way to tell cbindgen to use pmacct-gauze-bindings to find the original name
@@ -34,11 +33,9 @@ pub struct ParseResult {
 
 #[no_mangle]
 pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, len: u32) -> ParseResult {
-
     let s = unsafe { slice::from_raw_parts(buffer as *const u8, len as usize) };
     let span = Span::new(s);
     if let Ok((end_span, _msg)) = BmpMessage::from_wire(span) {
-
         let read_bytes = span.offset(&end_span) as u32;
 
         println!("netgauze {} bytes read", read_bytes);
@@ -50,7 +47,7 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, len: u32) -
                 len,
                 type_: 0,
             },
-        }
+        };
     }
 
     ParseResult {
@@ -64,6 +61,4 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, len: u32) -
 }
 
 #[no_mangle]
-pub extern "C" fn nonce8() {
-
-}
+pub extern "C" fn nonce8() {}

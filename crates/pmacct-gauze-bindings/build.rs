@@ -1,157 +1,37 @@
+use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
+use bindgen_bridge::import::{NameMappings, NameMappingsCallback};
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::env;
 use std::error::Error;
 use std::fs::OpenOptions;
-use std::io::{Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use bindgen::CompKind;
-use proc_macro2::Ident;
+use quote::__private::TokenStream;
 use quote::quote;
-use std::fmt::Write as fmt_Write;
 
 #[derive(Debug)]
 struct IgnoreMacros(HashSet<String>);
 
-impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
-    fn will_parse_macro(&self, name: &str) -> bindgen::callbacks::MacroParsingBehavior {
+impl ParseCallbacks for IgnoreMacros {
+    fn will_parse_macro(&self, name: &str) -> MacroParsingBehavior {
         if self.0.contains(name) {
-            bindgen::callbacks::MacroParsingBehavior::Ignore
+            MacroParsingBehavior::Ignore
         } else {
-            bindgen::callbacks::MacroParsingBehavior::Default
+            MacroParsingBehavior::Default
         }
     }
 }
 
-#[derive(Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
-#[repr(transparent)]
-struct Type(usize);
+fn main() -> Result<(), Box<dyn Error>> {
+    let header_location = option_env!("PMACCT_HEADER_DIR").unwrap_or("/usr/local/include/pmacct");
 
-#[derive(Debug, Default, Eq, PartialEq)]
-struct NameMapping {
-    /// This is optional because of anonymous types
-    c_name: Option<String>,
-    rust_name: String,
-    aliases: HashSet<String>,
-}
-
-impl NameMapping {
-    pub fn build_c_name(kind: CompKind, original_name: Option<&str>) -> Option<String> {
-        let original_name = original_name?;
-
-        // has a space
-        let prefix = match kind {
-            CompKind::Struct => "struct ",
-            CompKind::Union => "enum "
-        };
-
-        let result = if original_name.starts_with(prefix) {
-            original_name.to_string()
-        } else {
-            format!("{prefix}{original_name}")
-        };
-
-        Some(result)
-    }
-}
-
-// TODO make this into a standalone library
-#[derive(Debug, Default)]
-struct NameMappings {
-    types: HashMap<Type, NameMapping>,
-    aliases: HashMap<Type, HashSet<String>>,
-}
-
-impl NameMappings {
-    pub fn forget_unused_aliases(&mut self) -> usize {
-        self.aliases.drain().map(|(_, set)| set.len()).sum()
-    }
-
-
-    /// generate a cbindgen.toml [export.rename] section, without the section header
-    pub fn to_cbindgen_toml_renames(&self, use_aliases: bool) -> Result<String, Box<dyn Error>> {
-        let mut result = String::with_capacity(self.types.len() * 16); // rough approximate of the capacity
-
-        for (id, mapping) in &self.types {
-            let use_name = if mapping.c_name.is_none() || (use_aliases && !mapping.aliases.is_empty()) {
-                mapping.aliases.iter().next()
-            } else {
-                mapping.c_name.as_ref()
-            };
-
-            if let Some(use_name) = use_name {
-                writeln!(&mut result, "\"{}\" = \"{}\"", mapping.rust_name, use_name)?;
-            } else {
-                eprintln!("Warn: type with no valid name during rename export! id={} info={:#?}", id.0, mapping);
-                continue;
-            }
-        }
-
-        Ok(result)
-    }
-}
-
-#[derive(Debug)]
-struct NameMappingsCallback(Rc<RefCell<NameMappings>>);
-
-/// types: Map ItemId => Info { canonical_ident (final rust name), original_name(item.kind.type.name), HashSet<Alias> }
-/// found_aliases: Map ItemId => Alias
-/// on new type/item: call new composite callback => insert to map, check found_aliases
-/// on new alias: call new alias callback => if alias.type in types types.get(alias.type.id).push_alias(alias) else found_aliases.push(alias)
-/// on resolvedtyperef: call new alias callback => ^ + typeref.name != original_name
-impl bindgen::callbacks::ParseCallbacks for NameMappingsCallback {
-    fn new_composite_found(&self, _id: usize, _kind: CompKind, _original_name: Option<&str>, _final_ident: &Ident) {
-        let mut mappings = self.0.borrow_mut();
-
-        let id = Type(_id);
-        let mut aliases = mappings.aliases.remove(&id).unwrap_or_else(|| HashSet::new());
-
-        let mut c_name = NameMapping::build_c_name(_kind, _original_name);
-
-        println!("kind : {:?} original {:?} => {:?}", _kind, _original_name, c_name);
-        // if the struct is not anonymous, remove all aliases with the same name
-        if c_name.is_some() {
-            aliases.retain(|value| !value.eq(c_name.as_deref().unwrap()));
-        }
-        // if the struct is anonymous we use one of the already known aliases as a name for it
-        else if let Some(one_alias) = aliases.iter().next().cloned() {
-            c_name = aliases.take(&one_alias)
-        }
-
-        if let Some(duplicate) = mappings.types.insert(id, NameMapping {
-            c_name: c_name.clone(), // may still be unknown in case of anonymous struct without known aliases
-            rust_name: _final_ident.to_string(),
-            aliases,
-        }) {
-            println!("Warn: duplicated definition for {{ id={} name={:?} }}! previous: {:?}", _id, c_name, duplicate)
-        }
-    }
-
-    fn new_alias_found(&self, _id: usize, _alias_name: &Ident, _alias_for: usize) {
-        let mut mappings = self.0.borrow_mut();
-
-        let target_id = Type(_alias_for);
-        let aliased_name = _alias_name.to_string();
-
-        if let Some(mapping) = mappings.types.get_mut(&target_id) {
-            // if the structure was anonymous let's use one of its aliases as a name
-            if let None = mapping.c_name {
-                mapping.c_name = Some(aliased_name.clone());
-            }
-            // if it wasn't, remember the alias
-            else {
-                mapping.aliases.insert(aliased_name);
-            }
-        } else {
-            mappings.aliases.entry(target_id).or_default().insert(aliased_name);
-        };
-    }
-}
-
-fn main() {
     // Tell cargo to look for shared libraries in the specified directory
-    println!("cargo:rustc-link-search=/usr/local/lib");
+    println!(
+        "cargo:rustc-link-search={}",
+        option_env!("LINK_SEARCH_DIR").unwrap_or("/usr/local/lib")
+    );
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=imported.h");
@@ -188,7 +68,7 @@ fn main() {
         .parse_callbacks(name_mappings_cb)
         //.c_naming(true)
         //.depfile("netgauze", "/tmp/depfile")
-        .allowlist_file("/usr/local/include/pmacct/src/bmp/bmp.h")
+        .allowlist_file(format!("{header_location}/src/bmp/bmp.h"))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
@@ -197,12 +77,8 @@ fn main() {
     let mut name_mappings = name_mappings.take();
     name_mappings.forget_unused_aliases();
     println!("discovered mappings = {:#?}", name_mappings);
-    let bindings_renames = name_mappings.to_cbindgen_toml_renames(false).unwrap();
-    println!("generated renames [no aliases] = \n{}", bindings_renames);
-    let bindings_renames_aliased = name_mappings.to_cbindgen_toml_renames(true).unwrap();
-    println!("generated renames [yes aliases] = \n{}", bindings_renames_aliased);
 
-    // Write the bindings to the src/bindings.rs file because we want autocomplete in our IDE.
+    // Write the bindings to the $OUT_DIR/bindings.rs file.
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
 
     println!("Using file output to : {:?}", &out_path);
@@ -212,29 +88,84 @@ fn main() {
         .expect("Couldn't write bindings!");
 
     if cfg!(feature = "export-renames") {
-        let export_renames = quote! {
-            pub fn get_bindings_renames_aliased() -> &'static str {
-                #bindings_renames_aliased
-            }
-
-            pub fn get_bindings_renames() -> &'static str {
-                #bindings_renames
-            }
-        };
-        append_file(export_renames.to_string().as_ref(), &out_path, true)
-            .expect("Couldn't write bindings renames!");
-
-        println!("Added export renames for cbindgen.toml!")
+        export_renames(name_mappings, &out_path)?;
     }
 
     println!("Output path for bindings : {:?}", out_path);
+
+    Ok(())
 }
 
-fn append_file<P: AsRef<Path> + ?Sized>(data: &[u8], path: &P, line_break: bool) -> Result<(), Box<dyn Error>> {
-    let mut f = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open(path)?;
+fn export_renames(name_mappings: NameMappings, out_path: &PathBuf) -> bindgen_bridge::Result<()> {
+    let bindings_renames = if cfg!(feature = "static-renames") {
+        let map: TokenStream = name_mappings
+            .to_static_map(false)
+            .unwrap()
+            .build()
+            .to_string()
+            .parse()?;
+
+        quote! {
+            pub static static_bindings: phf::Map<&'static str, &'static str> = #map;
+        }
+    } else {
+        let toml = name_mappings.to_cbindgen_toml_renames(false)?;
+
+        quote! {
+            pub fn bindings_renames() -> &'static str {
+                #toml
+            }
+        }
+    }.to_string();
+
+    println!("generated renames [no aliases] = \n{}", bindings_renames);
+
+    let bindings_renames_aliased = if cfg!(feature = "static-renames") {
+        let map: TokenStream = name_mappings
+            .to_static_map(true)
+            .unwrap()
+            .build()
+            .to_string()
+            .parse()?;
+
+        quote! {
+            pub static static_bindings_aliased: phf::Map<&'static str, &'static str> = #map;
+        }
+    } else {
+        let toml = name_mappings.to_cbindgen_toml_renames(true)?;
+
+        quote! {
+            pub fn bindings_renames_aliased() -> &'static str {
+                #toml
+            }
+        }
+    }.to_string();
+
+    println!("generated renames [yes aliases] = \n{}", bindings_renames_aliased);
+
+    append_file(
+        bindings_renames_aliased.as_bytes(),
+        out_path,
+        true,
+    ).expect("Couldn't write bindings renames unaliased!");
+
+    append_file(
+        bindings_renames.as_bytes(),
+        out_path,
+        true,
+    ).expect("Couldn't write bindings renames aliased!");
+
+    println!("Added export renames for cbindgen.toml!");
+
+    Ok(())
+}
+
+fn append_file<P: AsRef<Path> + ?Sized>(
+    data: &[u8],
+    path: &P,
+    line_break: bool,
+) -> Result<(), Box<dyn Error>> {
+    let mut f = OpenOptions::new().write(true).append(true).open(path)?;
 
     f.write_all(data)?;
 
