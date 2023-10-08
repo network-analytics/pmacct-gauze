@@ -8,8 +8,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use quote::__private::TokenStream;
-use quote::quote;
 
 #[derive(Debug)]
 struct IgnoreMacros(HashSet<String>);
@@ -47,8 +45,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "FP_ZERO".into(),
             "IPPORT_RESERVED".into(),
         ]
-            .into_iter()
-            .collect(),
+        .into_iter()
+        .collect(),
     );
 
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));
@@ -97,63 +95,33 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn export_renames(name_mappings: NameMappings, out_path: &PathBuf) -> bindgen_bridge::Result<()> {
-    let bindings_renames = if cfg!(feature = "static-renames") {
-        let map: TokenStream = name_mappings
-            .to_static_map(false)
-            .unwrap()
-            .build()
-            .to_string()
-            .parse()?;
+    let mut codegen = name_mappings.codegen();
+    let codegen = codegen.as_static_map(cfg!(feature = "static-renames"));
 
-        quote! {
-            pub static static_bindings: phf::Map<&'static str, &'static str> = #map;
-        }
-    } else {
-        let toml = name_mappings.to_cbindgen_toml_renames(false)?;
-
-        quote! {
-            pub fn bindings_renames() -> &'static str {
-                #toml
-            }
-        }
-    }.to_string();
+    let bindings_renames = codegen
+        .variable_name(Some("bindings_renames"))
+        .use_aliases(false)
+        .generate()?
+        .to_string();
 
     println!("generated renames [no aliases] = \n{}", bindings_renames);
 
-    let bindings_renames_aliased = if cfg!(feature = "static-renames") {
-        let map: TokenStream = name_mappings
-            .to_static_map(true)
-            .unwrap()
-            .build()
-            .to_string()
-            .parse()?;
+    let bindings_renames_aliased = codegen
+        .variable_name(Some("bindings_renames_aliased"))
+        .use_aliases(true)
+        .generate()?
+        .to_string();
 
-        quote! {
-            pub static static_bindings_aliased: phf::Map<&'static str, &'static str> = #map;
-        }
-    } else {
-        let toml = name_mappings.to_cbindgen_toml_renames(true)?;
+    println!(
+        "generated renames [yes aliases] = \n{}",
+        bindings_renames_aliased
+    );
 
-        quote! {
-            pub fn bindings_renames_aliased() -> &'static str {
-                #toml
-            }
-        }
-    }.to_string();
+    append_file(bindings_renames_aliased.as_bytes(), out_path, true)
+        .expect("Couldn't write bindings renames unaliased!");
 
-    println!("generated renames [yes aliases] = \n{}", bindings_renames_aliased);
-
-    append_file(
-        bindings_renames_aliased.as_bytes(),
-        out_path,
-        true,
-    ).expect("Couldn't write bindings renames unaliased!");
-
-    append_file(
-        bindings_renames.as_bytes(),
-        out_path,
-        true,
-    ).expect("Couldn't write bindings renames aliased!");
+    append_file(bindings_renames.as_bytes(), out_path, true)
+        .expect("Couldn't write bindings renames aliased!");
 
     println!("Added export renames for cbindgen.toml!");
 

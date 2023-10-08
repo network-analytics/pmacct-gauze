@@ -7,10 +7,10 @@ use std::path::PathBuf;
 type Result<T> = core::result::Result<T, Box<dyn Error>>;
 
 fn main() -> Result<()> {
-
-    let template = Template::load_template("cbindgen.toml.template")
+    let mut template = Template::new("cbindgen.toml.template");
+    let template = template
         .read_as_toml()?
-        .with_bindings(&pmacct_gauze_bindings::static_bindings_aliased);
+        .with_bindings(&pmacct_gauze_bindings::bindings_renames_aliased);
 
     let out_file = PathBuf::from("cbindgen.toml");
     let mut file = File::create(&out_file)?;
