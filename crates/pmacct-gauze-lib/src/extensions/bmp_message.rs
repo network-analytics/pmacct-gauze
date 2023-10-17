@@ -3,13 +3,12 @@ use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, PeerHeader};
 use pmacct_gauze_bindings::bmp_peer_hdr;
 use crate::c_api::ParseError;
-use crate::c_api::ParseError::MessageDoesNotHavePeerHeader;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
 use crate::extensions::rd::{ExtendRd, RouteDistinguisherBytes};
 
 pub trait ExtendBmpMessage {
     fn get_peer_header(&self) -> Option<&PeerHeader>;
-    fn get_pmacct_peer_hdr(&self) -> Result<bmp_peer_hdr, ParseError>;
+    fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, ParseError>;
 }
 
 impl ExtendBmpMessage for BmpMessage {
@@ -32,11 +31,14 @@ impl ExtendBmpMessage for BmpMessage {
         }
     }
 
-    fn get_pmacct_peer_hdr(&self) -> Result<bmp_peer_hdr, ParseError> {
+    fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, ParseError> {
+        let peer_hdr = if let Some(peer_hdr) = self.get_peer_header() {
+            peer_hdr
+        } else {
+            return Ok(None);
+        };
 
-        let peer_hdr = self.get_peer_header().ok_or(MessageDoesNotHavePeerHeader)?;
-
-        Ok(bmp_peer_hdr {
+        Ok(Some(bmp_peer_hdr {
             type_: peer_hdr.peer_type().get_type().into(),
             flags: peer_hdr.peer_type().get_flags_value(),
             rd: peer_hdr.rd().map(|rd| rd.to_bytes()).unwrap_or(Ok(RouteDistinguisherBytes::default()))?.0,
@@ -45,7 +47,7 @@ impl ExtendBmpMessage for BmpMessage {
             bgp_id: u32::from_ne_bytes(peer_hdr.bgp_id().octets()),
             tstamp_sec: peer_hdr.timestamp().map(|timestamp| timestamp.timestamp() as u32).unwrap_or(0),
             tstamp_usec: peer_hdr.timestamp().map(|timestamp| timestamp.timestamp_subsec_micros()).unwrap_or(0),
-        })
+        }))
     }
 }
 

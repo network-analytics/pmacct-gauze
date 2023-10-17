@@ -18,3 +18,4 @@
 
 // pmacct headers (bindings generated)
 #include <pmacct/src/bmp/bmp.h>
+#include <pmacct/src/bmp/bmp_logdump.h>

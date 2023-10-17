@@ -66,6 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .parse_callbacks(name_mappings_cb)
         //.c_naming(true)
         //.depfile("netgauze", "/tmp/depfile")
+        .allowlist_file(format!("{header_location}/src/bmp/bmp_logdump.h"))
         .allowlist_file(format!("{header_location}/src/bmp/bmp.h"))
         // Finish the builder and generate the bindings.
         .generate()

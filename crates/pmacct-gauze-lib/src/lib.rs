@@ -1,5 +1,7 @@
 #![feature(try_trait_v2)]
+#![feature(vec_into_raw_parts)]
 
+#[cfg(feature = "capi")]
 pub(crate) mod extensions;
 
 #[cfg(feature = "capi")]

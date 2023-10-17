@@ -26,7 +26,7 @@ impl ExtendIpAddr for IpAddr {
         }
 
         let result = unsafe { transmute(result) };
-        println!("IpAddr {:#?} => {:#?}", self, result);
+        // println!("IpAddr {:#?} => {:#?}", self, result);
 
         Ok(IpAddrBytes(result))
     }
