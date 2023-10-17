@@ -1,3 +1,7 @@
+#![feature(try_trait_v2)]
+
+pub(crate) mod extensions;
+
 #[cfg(feature = "capi")]
 pub mod c_api;
 

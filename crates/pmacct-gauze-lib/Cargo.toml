@@ -5,16 +5,22 @@ edition = "2021"
 
 build = "build.rs"
 
+[toolchain]
+channel = "nightly"
+
 [build-dependencies]
 pmacct-gauze-bindings = { path = "../pmacct-gauze-bindings", features = ["static-renames"] }
 bindgen-bridge = { git = "https://github.com/mxyns/bindgen-bridge" }
 
 [dependencies]
 libc = "0.2.148"
-netgauze-parse-utils = "0.1.0"
-netgauze-bmp-pkt = "0.1.0"
+netgauze-parse-utils = { path = "../../../netgauze/crates/parse-utils" }
+netgauze-bmp-pkt = { path = "../../../netgauze/crates/bmp-pkt" }
+netgauze-bgp-pkt = { path = "../../../netgauze/crates/bgp-pkt" }
+netgauze-serde-macros = { path = "../../../netgauze/crates/serde-macros" }
 nom = "7.1.3"
 pmacct-gauze-bindings = { path = "../pmacct-gauze-bindings" }
+c_str_macro = "1.0.3"
 
 [features]
 capi = []
