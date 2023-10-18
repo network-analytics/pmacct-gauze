@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::error::Error;
-use std::ffi::{c_char, c_void, CString};
+use std::ffi::{c_char, CString};
 use std::fmt::{Debug, Display, Formatter};
 use std::mem::size_of;
 use std::ops::{ControlFlow, FromResidual, Try};
@@ -210,16 +210,31 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u3
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct CSlice {
-    base_ptr: *mut c_void,
+pub struct CSlice<T> {
+    base_ptr: *mut T,
     stride: usize,
-    end_ptr: *mut c_void,
+    end_ptr: *mut T,
     len: usize,
     cap: usize,
 }
 
+
+impl<T> CSlice<T> {
+    unsafe fn from_vec(value: Vec<T>) -> Self {
+
+        let (ptr, len, cap) = value.into_raw_parts();
+        CSlice {
+            base_ptr: ptr,
+            stride: size_of::<T>(),
+            end_ptr: ptr.add(len),
+            len,
+            cap,
+        }
+    }
+}
+
 #[no_mangle]
-pub extern "C" fn bmp_init_get_tlvs(bmp_init: *const BmpMessageValueOpaque) -> CSlice {
+pub extern "C" fn bmp_init_get_tlvs(bmp_init: *const BmpMessageValueOpaque) -> CSlice<bmp_log_tlv> {
     let bmp_init = unsafe { &bmp_init.as_ref().unwrap().0 };
 
     let init = match bmp_init {
@@ -238,19 +253,21 @@ pub extern "C" fn bmp_init_get_tlvs(bmp_init: *const BmpMessageValueOpaque) -> C
         })
     }
 
-    let (ptr, len, cap) = tlvs.into_raw_parts();
-
-    let c_slice = CSlice {
-        base_ptr: ptr as *mut c_void,
-        stride: size_of::<bmp_log_tlv>(),
-        end_ptr: unsafe { ptr.add(len) } as *mut c_void,
-        len,
-        cap,
+    let c_slice = unsafe {
+        CSlice::from_vec(tlvs)
     };
 
-    println!("bmp_init_get_tlvs: {:#?}", &c_slice);
+    // println!("bmp_init_get_tlvs: {:#?}", &c_slice);
 
     c_slice
+}
+
+// TODO macro to generate free functions for generics automatically
+#[no_mangle]
+pub extern "C" fn CSlice_free_bmp_log_tlv(slice: CSlice<bmp_log_tlv>) {
+    unsafe {
+        drop(Vec::from_raw_parts(slice.base_ptr, slice.len, slice.cap));
+    }
 }
 
 #[no_mangle]
