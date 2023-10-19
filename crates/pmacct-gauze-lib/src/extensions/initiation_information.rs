@@ -1,12 +1,11 @@
 use std::ffi::c_void;
 use netgauze_bmp_pkt::InitiationInformation;
 
-pub trait InitInfoExtend {
-
+pub trait TlvExtension {
     fn get_value_ptr(&self) -> *mut c_void;
 }
 
-impl InitInfoExtend for InitiationInformation {
+impl TlvExtension for InitiationInformation {
     fn get_value_ptr(&self) -> *mut c_void {
         let ptr = match self {
             InitiationInformation::String(str) => str.as_ptr(),

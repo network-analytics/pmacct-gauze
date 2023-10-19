@@ -8,6 +8,16 @@ pub(crate) mod extensions;
 #[cfg(feature = "capi")]
 pub mod c_api;
 
+
+#[cfg(feature = "capi")]
+pub mod option;
+
+#[cfg(feature = "capi")]
+pub mod error;
+
+#[cfg(feature = "capi")]
+pub mod slice;
+
 #[cfg(test)]
 mod tests {
 

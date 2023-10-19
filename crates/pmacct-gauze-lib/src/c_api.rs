@@ -1,10 +1,5 @@
 use std::collections::HashMap;
-use std::convert::Infallible;
-use std::error::Error;
-use std::ffi::{c_char, CString};
-use std::fmt::{Debug, Display, Formatter};
-use std::mem::size_of;
-use std::ops::{ControlFlow, FromResidual, Try};
+use std::ffi::CString;
 use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{Span, WritablePdu};
@@ -12,9 +7,11 @@ use nom::Offset;
 use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::slice;
-use c_str_macro::c_str;
+use crate::error::ParseError;
 use crate::extensions::bmp_message::ExtendBmpMessage;
-use crate::extensions::initiation_information::InitInfoExtend;
+use crate::extensions::initiation_information::TlvExtension;
+use crate::option::COption;
+use crate::slice::CSlice;
 
 pub struct BmpMessageValueOpaque(BmpMessageValue);
 
@@ -33,146 +30,17 @@ pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -
 }
 
 #[repr(C)]
-pub enum COption<T> {
-    None,
-    Some(T),
-}
-
-impl<T> From<COption<T>> for Option<T> {
-    fn from(value: COption<T>) -> Self {
-        match value {
-            COption::None => None,
-            COption::Some(t) => Some(t)
-        }
-    }
-}
-
-impl<T> From<Option<T>> for COption<T> {
-    fn from(value: Option<T>) -> Self {
-        match value {
-            None => COption::None,
-            Some(t) => COption::Some(t)
-        }
-    }
-}
-
-#[repr(C)]
 pub struct ParseOk {
     read_bytes: u32,
     common_header: bmp_common_hdr,
     peer_header: COption<bmp_peer_hdr>,
-    message: *mut BmpMessageValueOpaque,
-}
-
-#[repr(C)]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum ParseError {
-    MessageDoesNotHavePeerHeader,
-    RouteDistinguisherError,
-    IpAddrError,
-    NetgauzeError(*mut c_char),
-    StringConversionError,
-}
-
-impl ParseError {
-    fn as_ptr(&self) -> *const c_char {
-        match self {
-            ParseError::RouteDistinguisherError => c_str! {
-                "ParseError::RouteDistinguisherError"
-            }.as_ptr(),
-            ParseError::MessageDoesNotHavePeerHeader => c_str! {
-                "ParseError::MessageDoesNotHavePeerHeader"
-            }.as_ptr(),
-            ParseError::NetgauzeError(err) => {
-                return *err as *const c_char;
-            }
-            ParseError::StringConversionError => c_str! {
-                "ParseError::StringConversionError"
-            }.as_ptr(),
-            ParseError::IpAddrError => c_str! {
-                "ParseError::IpAddrError"
-            }.as_ptr(),
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn parse_error_str(error: &'static ParseError) -> *const c_char {
-    error.as_ptr()
-}
-
-#[no_mangle]
-pub extern "C" fn parse_result_free(value: ParseResultEnum) {
-    match value {
-        ParseResultEnum::ParseSuccess(parse_ok) => unsafe {
-            let _ = Box::from_raw(parse_ok.message);
-        }
-        ParseResultEnum::ParseFailure(parse_error) => {
-            match parse_error {
-                ParseError::MessageDoesNotHavePeerHeader => {}
-                ParseError::RouteDistinguisherError => {}
-                ParseError::NetgauzeError(err) => unsafe {
-                    let _ = CString::from_raw(err);
-                },
-                ParseError::StringConversionError => {}
-                ParseError::IpAddrError => {}
-            }
-        }
-    };
+    pub(crate) message: *mut BmpMessageValueOpaque,
 }
 
 #[repr(C)]
 pub enum ParseResultEnum {
     ParseSuccess(ParseOk),
     ParseFailure(ParseError),
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", &self)
-    }
-}
-
-impl Error for ParseError {}
-
-impl FromResidual for ParseResultEnum {
-    fn from_residual(residual: <Self as Try>::Residual) -> Self {
-        match residual {
-            Err(err) => ParseResultEnum::ParseFailure(err),
-            _ => unreachable!("residual should always be the error")
-        }
-    }
-}
-
-impl Try for ParseResultEnum {
-    /// [Self::ParseSuccess]
-    type Output = Self;
-
-    /// [Self::ParseFailure]
-    type Residual = Result<Infallible, ParseError>;
-
-    fn from_output(output: Self::Output) -> Self {
-        output
-    }
-
-    fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
-        match self {
-            ParseResultEnum::ParseSuccess(_) => ControlFlow::Continue(self),
-            ParseResultEnum::ParseFailure(err) => ControlFlow::Break(Err(err))
-        }
-    }
-}
-
-impl From<ParseOk> for ParseResultEnum {
-    fn from(value: ParseOk) -> Self {
-        Self::ParseSuccess(value)
-    }
-}
-
-impl From<ParseError> for ParseResultEnum {
-    fn from(value: ParseError) -> Self {
-        Self::ParseFailure(value)
-    }
 }
 
 
@@ -208,30 +76,6 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u3
     ParseError::NetgauzeError(netgauze_error.into_raw()).into()
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct CSlice<T> {
-    base_ptr: *mut T,
-    stride: usize,
-    end_ptr: *mut T,
-    len: usize,
-    cap: usize,
-}
-
-
-impl<T> CSlice<T> {
-    unsafe fn from_vec(value: Vec<T>) -> Self {
-
-        let (ptr, len, cap) = value.into_raw_parts();
-        CSlice {
-            base_ptr: ptr,
-            stride: size_of::<T>(),
-            end_ptr: ptr.add(len),
-            len,
-            cap,
-        }
-    }
-}
 
 #[no_mangle]
 pub extern "C" fn bmp_init_get_tlvs(bmp_init: *const BmpMessageValueOpaque) -> CSlice<bmp_log_tlv> {

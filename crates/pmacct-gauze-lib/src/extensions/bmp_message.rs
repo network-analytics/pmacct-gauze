@@ -2,7 +2,7 @@ use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, PeerHeader};
 use pmacct_gauze_bindings::bmp_peer_hdr;
-use crate::c_api::ParseError;
+use crate::error::ParseError;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
 use crate::extensions::rd::{ExtendRd, RouteDistinguisherBytes};
 
