@@ -28,7 +28,6 @@ impl FromResidual for ParseResultEnum {
 #[repr(C)]
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ParseError {
-    MessageDoesNotHavePeerHeader,
     RouteDistinguisherError,
     IpAddrError,
     NetgauzeError(*mut c_char),
@@ -40,9 +39,6 @@ impl ParseError {
         match self {
             ParseError::RouteDistinguisherError => c_str! {
                 "ParseError::RouteDistinguisherError"
-            }.as_ptr(),
-            ParseError::MessageDoesNotHavePeerHeader => c_str! {
-                "ParseError::MessageDoesNotHavePeerHeader"
             }.as_ptr(),
             ParseError::NetgauzeError(err) => {
                 return *err as *const c_char;
@@ -69,13 +65,12 @@ pub extern "C" fn parse_result_free(value: ParseResultEnum) {
         }
         ParseResultEnum::ParseFailure(parse_error) => {
             match parse_error {
-                ParseError::MessageDoesNotHavePeerHeader => {}
-                ParseError::RouteDistinguisherError => {}
                 ParseError::NetgauzeError(err) => unsafe {
                     drop(CString::from_raw(err));
                 },
-                ParseError::StringConversionError => {}
-                ParseError::IpAddrError => {}
+                ParseError::RouteDistinguisherError
+                | ParseError::StringConversionError
+                | ParseError::IpAddrError => {}
             }
         }
     };
