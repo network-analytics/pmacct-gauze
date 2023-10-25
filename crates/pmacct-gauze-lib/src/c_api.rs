@@ -4,18 +4,17 @@ use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{Span, WritablePdu};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, aspath_parse, bgp_peer};
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, aspath_parse, bgp_peer, bgp_afi2family, AFI_IP6, in6_addr, in6_addr__bindgen_ty_1, SAFI_MPLS_LABEL, path_id_t};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
+use std::net::{IpAddr, Ipv4Addr};
 use std::os::raw::c_int;
-use libc::option;
 use netgauze_bgp_pkt::BgpMessage;
-use netgauze_bgp_pkt::path_attribute::{AsPath, MpReach, PathAttributeValue};
+use netgauze_bgp_pkt::path_attribute::{MpReach, PathAttributeValue};
 use crate::error::ParseError;
 use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::extensions::initiation_information::TlvExtension;
 use crate::extensions::ipaddr::CPrefix;
-use crate::free_cslice_t_with_item_free;
 use crate::macros::free_cslice_t;
 use crate::option::COption;
 use crate::slice::CSlice;
@@ -123,10 +122,13 @@ free_cslice_t!(bmp_log_tlv);
 #[repr(C)]
 pub struct ProcessPacket {
     update_type: u32,
+    /// pmacct C code MUST reallocate and copy this value
+    /// to ensure correct freeing from C
     prefix: prefix,
-    /// pmacct C code MUST copy this value
-    attr: *const bgp_attr,
-    attr_extra: *const bgp_attr_extra,
+    /// pmacct C code MUST reallocate and copy this value
+    /// to ensure correct freeing from C
+    attr: bgp_attr,
+    attr_extra: bgp_attr_extra,
     afi: afi_t,
     safi: safi_t,
 }
@@ -155,7 +157,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         let mut mp_unreach = None;
 
         // TODO figure out a solution for cached values
-        let aspath = unsafe {
+        let _aspath = unsafe {
             aspath_parse(peer, ptr::null_mut(), 10, 1 as c_int)
         };
 
@@ -174,11 +176,6 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             bitmap: 0,
         };
 
-        // we will find nlris before being done with attr parsing
-        // so we allocate a space for the attr, pass the pointer in the result structs
-        // and then we do not forget to set the correct, filled value in the mem space
-        let attr_ptr = Box::into_raw(Box::new(attr.clone()));
-
         let mut attr_extra = bgp_attr_extra {
             bitmap: 0,
             rd: rd_as {
@@ -193,15 +190,12 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             otc: 0,
         };
 
-        // same as for attr_ptr
-        let mut attr_extra_ptr = Box::into_raw(Box::new(attr_extra.clone()));
-
         // TODO parse attr
         for _attr in update.path_attributes() {
             match _attr.value() {
                 // TODO pointer references need to get them from a cache but
                 // the getters expect a raw pointer to the wire bytes
-                PathAttributeValue::AsPath(as_path) => {}
+                PathAttributeValue::AsPath(_) => {}
                 PathAttributeValue::As4Path(_) => {}
                 PathAttributeValue::Communities(_) => {}
                 PathAttributeValue::LargeCommunities(_) => {}
@@ -218,10 +212,10 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                 // TODO error if already present
                 PathAttributeValue::MpReach(mp_reach_attr) => {
                     let _ = mp_reach.insert(mp_reach_attr);
-                },
+                }
                 PathAttributeValue::MpUnreach(mp_unreach_attr) => {
                     let _ = mp_unreach.insert(mp_unreach_attr);
-                },
+                }
 
                 // TODO warn attribute not supported by pmacct
                 PathAttributeValue::AtomicAggregate(_)
@@ -232,16 +226,92 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             };
         }
 
+        fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
+            if !mp_reach {
+                attr.nexthop.s_addr = next_hop.to_bits();
+            } else {
+                attr.mp_nexthop = host_addr {
+                    family: unsafe { bgp_afi2family(AFI_IP as c_int) } as u8,
+                    address: host_addr__bindgen_ty_1 {
+                        ipv4: in_addr {
+                            s_addr: next_hop.to_bits()
+                        }
+                    },
+                };
+            }
+        }
+
+        fn fill_attr_mp_next_hop(attr: &mut bgp_attr, next_hop: &IpAddr) {
+            let afi = match next_hop {
+                IpAddr::V4(_) => AFI_IP,
+                IpAddr::V6(_) => AFI_IP6
+            };
+
+            let addr = match next_hop {
+                IpAddr::V4(ipv4) => host_addr__bindgen_ty_1 {
+                    ipv4: in_addr {
+                        s_addr: ipv4.to_bits()
+                    }
+                },
+                IpAddr::V6(ipv6) => host_addr__bindgen_ty_1 {
+                    ipv6: in6_addr {
+                        __in6_u: in6_addr__bindgen_ty_1 {
+                            __u6_addr8: ipv6.octets()
+                        }
+                    }
+                }
+            };
+
+            attr.mp_nexthop = host_addr {
+                family: unsafe { bgp_afi2family(afi as c_int) } as u8,
+                address: addr,
+            };
+        }
+
+        fn fill_path_id(attr_extra: &mut bgp_attr_extra, path_id: &Option<path_id_t>) {
+            if let Some(path_id) = path_id {
+                attr_extra.path_id = *path_id;
+            }
+        }
+
         // TODO
         if let Some(mp_reach) = mp_reach {
             match mp_reach {
                 // pmacct only has AFI IPv4/6 & BGP-LS
                 // and SAFI UNICAST MPLS-LABEL MPLS-VPN
-                MpReach::Ipv4Unicast { next_hop, nlri } => {
-                    attr.nexthop.s_addr = next_hop.to_bits();
+                MpReach::Ipv4Unicast { next_hop, nlri: nlris } => {
+                    fill_attr_ipv4_next_hop(&mut attr, next_hop, true);
 
+                    for nlri in nlris {
+                        fill_path_id(&mut attr_extra, &nlri.path_id());
+
+                        result.push(ProcessPacket {
+                            update_type: BGP_NLRI_UPDATE,
+                            prefix: CPrefix::try_from(nlri.network().address()).unwrap().0,
+                            attr,
+                            attr_extra,
+                            afi: AFI_IP as afi_t,
+                            safi: SAFI_UNICAST as safi_t,
+                        });
+                    }
                 }
-                MpReach::Ipv4NlriMplsLabels { .. } => {}
+                MpReach::Ipv4NlriMplsLabels { next_hop, nlri: nlris } => {
+                    fill_attr_mp_next_hop(&mut attr, next_hop);
+
+                    for nlri in nlris {
+                        fill_path_id(&mut attr_extra, &nlri.path_id());
+                        // TODO label, one in pmacct, multiple in netgauze
+
+                        result.push(ProcessPacket {
+                            update_type: BGP_NLRI_UPDATE,
+                            prefix: CPrefix::try_from(&nlri.prefix()).unwrap().0,
+                            attr,
+                            attr_extra,
+                            afi: AFI_IP as afi_t,
+                            safi: SAFI_MPLS_LABEL as safi_t,
+                        });
+                    }
+                }
                 MpReach::Ipv4MplsVpnUnicast { .. } => {}
                 MpReach::Ipv6Unicast { .. } => {}
                 MpReach::Ipv6NlriMplsLabels { .. } => {}
@@ -260,9 +330,9 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         for nlri in update.nlri() {
             result.push(ProcessPacket {
                 update_type: BGP_NLRI_UPDATE,
-                prefix: CPrefix::try_from(nlri).unwrap().0,
-                attr: attr_ptr,
-                attr_extra: attr_extra_ptr,
+                prefix: CPrefix::try_from(nlri.network().address()).unwrap().0,
+                attr,
+                attr_extra,
                 afi: AFI_IP as afi_t,
                 safi: SAFI_UNICAST as safi_t,
             })
@@ -271,16 +341,12 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         for withdraw in update.withdraw_routes() {
             result.push(ProcessPacket {
                 update_type: BGP_NLRI_WITHDRAW,
-                prefix: CPrefix::try_from(withdraw).unwrap().0,
-                attr: attr_ptr,
-                attr_extra: attr_extra_ptr,
+                prefix: CPrefix::try_from(withdraw.network().address()).unwrap().0,
+                attr,
+                attr_extra,
                 afi: AFI_IP as afi_t,
                 safi: SAFI_UNICAST as safi_t,
             })
-        }
-
-        unsafe {
-            *attr_ptr = attr;
         }
     }
 
@@ -291,22 +357,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
     COption::Some(result)
 }
 
-impl ProcessPacket {
-    fn rust_free(self) {
-        let ProcessPacket {
-            attr,
-            attr_extra,
-            ..
-        } = self;
-
-        unsafe {
-            let _ = Box::from_raw(attr as *mut bgp_attr);
-            let _ = Box::from_raw(attr_extra as *mut bgp_attr_extra);
-        }
-    }
-}
-
-free_cslice_t_with_item_free!(ProcessPacket);
+free_cslice_t!(ProcessPacket);
 
 
 #[no_mangle]

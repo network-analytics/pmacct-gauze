@@ -28,6 +28,7 @@ macro_rules! free_cslice_t_with_item_free {
                     for item in vec {
                         $typ :: rust_free(item)
                     }
+                    drop(vec);
                 }
             }
         }
