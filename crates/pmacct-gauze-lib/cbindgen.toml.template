@@ -9,6 +9,7 @@ language = "C"
 
 [parse]
 exclude = ["libc", "pmacct-gauze-bindings"]
+expand = ["pmacct-gauze-lib"]
 
 [export.rename]
 "bridge" = "pmacct-gauze-bindings"

@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::fmt::{Display, Formatter};
 use std::ops::{ControlFlow, FromResidual, Try};
 use c_str_macro::c_str;
-use crate::c_api::{ParseOk, ParseResultEnum};
+use crate::c_api::{ParsedBmp, ParseOk, ParseResultEnum};
 use libc::c_char;
 
 impl Display for ParseError {
@@ -15,7 +15,7 @@ impl Display for ParseError {
 
 impl Error for ParseError {}
 
-impl FromResidual for ParseResultEnum {
+impl<T> FromResidual for ParseResultEnum<T> {
     fn from_residual(residual: <Self as Try>::Residual) -> Self {
         match residual {
             Err(err) => ParseResultEnum::ParseFailure(err),
@@ -58,10 +58,10 @@ pub extern "C" fn parse_error_str(error: &'static ParseError) -> *const c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn parse_result_free(value: ParseResultEnum) {
+pub extern "C" fn parse_result_free(value: ParseResultEnum<ParsedBmp>) {
     match value {
         ParseResultEnum::ParseSuccess(parse_ok) => unsafe {
-            drop(Box::from_raw(parse_ok.message));
+            drop(Box::from_raw(parse_ok.parsed.message));
         }
         ParseResultEnum::ParseFailure(parse_error) => {
             match parse_error {
@@ -75,7 +75,7 @@ pub extern "C" fn parse_result_free(value: ParseResultEnum) {
         }
     };
 }
-impl Try for ParseResultEnum {
+impl<T> Try for ParseResultEnum<T> {
     /// [Self::ParseSuccess]
     type Output = Self;
 
@@ -94,13 +94,13 @@ impl Try for ParseResultEnum {
     }
 }
 
-impl From<ParseOk> for ParseResultEnum {
-    fn from(value: ParseOk) -> Self {
+impl<T> From<ParseOk<T>> for ParseResultEnum<T> {
+    fn from(value: ParseOk<T>) -> Self {
         Self::ParseSuccess(value)
     }
 }
 
-impl From<ParseError> for ParseResultEnum {
+impl<T> From<ParseError> for ParseResultEnum<T> {
     fn from(value: ParseError) -> Self {
         Self::ParseFailure(value)
     }

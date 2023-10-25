@@ -19,3 +19,6 @@
 // pmacct headers (bindings generated)
 #include <pmacct/src/bmp/bmp.h>
 #include <pmacct/src/bmp/bmp_logdump.h>
+#include <pmacct/src/bgp/bgp_packet.h>
+#include <pmacct/src/bgp/bgp_util.h>
+#include <pmacct/src/bgp/bgp_aspath.h>

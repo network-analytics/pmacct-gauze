@@ -68,6 +68,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         //.depfile("netgauze", "/tmp/depfile")
         .allowlist_file(format!("{header_location}/src/bmp/bmp_logdump.h"))
         .allowlist_file(format!("{header_location}/src/bmp/bmp.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp_util.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp_packet.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp_aspath.h"))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
