@@ -13,10 +13,10 @@
 #include <pmacct/src/pmacct.h>
 #include <pmacct/src/addr.h>
 #include <pmacct/src/plugin_hooks.h>
-#include <pmacct/src/network.h>
-#include <pmacct/src/bgp/bgp.h>
 
 // pmacct headers (bindings generated)
+#include <pmacct/src/bgp/bgp.h>
+#include <pmacct/src/network.h>
 #include <pmacct/src/bmp/bmp.h>
 #include <pmacct/src/bmp/bmp_logdump.h>
 #include <pmacct/src/bgp/bgp_packet.h>
