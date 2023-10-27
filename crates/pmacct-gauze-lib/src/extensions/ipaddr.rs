@@ -1,5 +1,5 @@
 use std::mem::transmute;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use pmacct_gauze_bindings::{AFI_IP, AFI_IP6, bgp_afi2family, in6_addr, in6_addr__bindgen_ty_1, in_addr, prefix, prefix__bindgen_ty_1, u_char};
 use std::os::raw::c_int;
@@ -22,21 +22,17 @@ pub trait ExtendIpAddr {
 
 impl ExtendIpAddr for IpAddr {
     fn to_bytes(&self) -> Result<IpAddrBytes, IpAddrWritingError> {
-        let mut result = [0u8; 16];
-        {
-            // TODO use to_bits
-            match self {
-                IpAddr::V4(ipv4) => {
-                    result[12..].copy_from_slice(&ipv4.octets());
-                }
-                IpAddr::V6(ipv6) => {
-                    result.copy_from_slice(&ipv6.octets());
-                }
-            };
-        }
 
-        let result = unsafe { transmute(result) };
-        // println!("IpAddr {:#?} => {:#?}", self, result);
+        let value = match self {
+            IpAddr::V4(ipv4) => {
+                ipv4.to_bits() as u128
+            }
+            IpAddr::V6(ipv6) => {
+                ipv6.to_bits()
+            }
+        };
+
+        let result = unsafe { transmute(value) };
 
         Ok(IpAddrBytes(result))
     }

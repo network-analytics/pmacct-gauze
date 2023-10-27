@@ -16,7 +16,7 @@ macro_rules! free_cslice_t {
 pub use free_cslice_t;
 
 
-// TODO derive macro with automatic rust_free impl
+// TODO qol: derive macro with automatic rust_free impl
 #[macro_export]
 macro_rules! free_cslice_t_with_item_free {
     ($typ:ty) => {
