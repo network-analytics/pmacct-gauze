@@ -7,6 +7,7 @@ use nom::Offset;
 use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, bgp_peer, in6_addr, in6_addr__bindgen_ty_1, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
+use std::fmt::{Debug, Formatter};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::MplsLabel;
@@ -127,11 +128,39 @@ free_cslice_t!(bmp_log_tlv);
 #[repr(C)]
 pub struct ProcessPacket {
     update_type: u32,
+    afi: afi_t,
+    safi: safi_t,
     prefix: prefix,
     attr: bgp_attr,
     attr_extra: bgp_attr_extra,
-    afi: afi_t,
-    safi: safi_t,
+}
+
+#[repr(transparent)]
+struct DebugUpdateType(u32);
+
+impl Debug for DebugUpdateType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", match self.0 {
+            BGP_NLRI_UPDATE => "BGP_NLRI_UPDATE",
+            BGP_NLRI_WITHDRAW => "BGP_NLRI_WITHDRAW",
+            _ => "BGP_NLRI_UNDEFINED",
+        }, self.0)
+    }
+}
+
+impl Debug for ProcessPacket {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("ProcessPacket");
+
+        debug.field("update_type", &DebugUpdateType(self.update_type));
+        debug.field("prefix", &self.prefix);
+        debug.field("attr", &self.attr);
+        debug.field("attr_extra", &self.attr_extra);
+        debug.field("afi", &self.afi);
+        debug.field("safi", &self.safi);
+
+        debug.finish()
+    }
 }
 
 // TODO use ParseError
@@ -371,7 +400,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                             safi,
                         });
                     }
-                },
+                }
                 MpReach::Ipv6NlriMplsLabels { next_hop, nlri: nlris } => {
                     fill_attr_mp_next_hop(&mut attr, next_hop);
 
@@ -476,7 +505,6 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                     }
                 }
                 MpUnreach::Ipv6Unicast { nlri: nlris } => {
-
                     for nlri in nlris {
                         fill_path_id(&mut attr_extra, nlri.path_id());
 
@@ -489,7 +517,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                             safi,
                         })
                     }
-                },
+                }
                 MpUnreach::Ipv6NlriMplsLabels { nlri: nlris } => {
                     for nlri in nlris {
                         fill_path_id(&mut attr_extra, nlri.path_id());
@@ -554,55 +582,14 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
         }
     }
 
-    // TODO make "debuggable" pmacct types and implement Debug or impl Debug in bindings crate
-    for packet in &result {
-        print_process_packet(packet)
+    for (idx, packet) in result.iter().enumerate() {
+        println!("Packet [{}/{}] {:#?}", idx, result.len() - 1, packet);
     }
     let result = unsafe {
         CSlice::from_vec(result)
     };
 
     COption::Some(result)
-}
-
-#[no_mangle]
-pub extern "C" fn print_process_packet(packet: &ProcessPacket) {
-    println!(
-        "ProcessPacket {{
-                update_type: {},
-                afi: {},
-                safi: {},
-                prefix: {:?},
-                attr: {{
-                    nexthop: {},
-                    mp_nexthop: {:?}
-                    med: {},
-                    local_pref: {},
-                    origin: {},
-                    bitmap: {},
-                }},
-                attr_extra: {{
-                    path_id: {},
-                    rd: {:?},
-                    label: {:?},
-                    bitmap: {},
-                }}
-            }}",
-        if packet.update_type == BGP_NLRI_UPDATE { "BGP_NLRI_UPDATE" } else { "BGP_NLRI_WITHDRAW" },
-        packet.afi,
-        packet.safi,
-        packet.prefix,
-        packet.attr.nexthop,
-        packet.attr.mp_nexthop,
-        packet.attr.med,
-        packet.attr.local_pref,
-        packet.attr.origin,
-        packet.attr.bitmap,
-        packet.attr_extra.path_id,
-        packet.attr_extra.rd,
-        packet.attr_extra.label,
-        packet.attr_extra.bitmap,
-    )
 }
 
 free_cslice_t!(ProcessPacket);

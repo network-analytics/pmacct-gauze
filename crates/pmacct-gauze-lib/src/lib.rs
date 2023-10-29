@@ -4,6 +4,8 @@
 #![feature(ip_bits)]
 
 // TODO use pmacct logger instead of println!
+// TODO add testing that validates return values using C functions
+
 #[cfg(feature = "capi")]
 pub(crate) mod extensions;
 #[cfg(feature = "capi")]

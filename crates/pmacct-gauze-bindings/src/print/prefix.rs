@@ -7,8 +7,8 @@ impl Debug for prefix {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("prefix");
 
-        debug.field("family", &self.family)
-            .field("prefixlen", &self.prefixlen);
+        debug.field("family", &self.family);
+        debug.field("prefixlen", &self.prefixlen);
 
         unsafe {
             match self.family as c_int {
