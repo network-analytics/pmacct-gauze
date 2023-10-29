@@ -13,6 +13,8 @@ quote = "1.0.33"
 
 [dependencies]
 phf = "0.11.2"
+ipnet = { version = "2.9.0", features = [] }
+libc = "0.2.149"
 
 [features]
 export-renames = []

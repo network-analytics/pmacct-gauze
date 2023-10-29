@@ -42,7 +42,7 @@ impl ExtendBmpMessage for BmpMessage {
             type_: peer_hdr.peer_type().get_type().into(),
             flags: peer_hdr.peer_type().get_flags_value(),
             rd: peer_hdr.rd().map(|rd| rd.to_bytes()).unwrap_or(Ok(RouteDistinguisherBytes::default()))?.0,
-            addr: peer_hdr.address().map(|addr| addr.to_bytes()).unwrap_or(Ok(IpAddrBytes::default()))?.0,
+            addr: peer_hdr.address().map(|addr| addr.to_bytes()).unwrap_or(IpAddrBytes::default()).0,
             asn: *peer_hdr.peer_as(),
             bgp_id: u32::from_ne_bytes(peer_hdr.bgp_id().octets()),
             tstamp_sec: peer_hdr.timestamp().map(|timestamp| timestamp.timestamp() as u32).unwrap_or(0),

@@ -16,9 +16,6 @@ pub mod error;
 pub mod slice;
 #[macro_use]
 pub mod macros;
-
-pub mod debug;
-
 #[cfg(test)]
 mod tests {
     #[test]

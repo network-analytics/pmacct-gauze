@@ -4,12 +4,10 @@ use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{Span, WritablePdu};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, bgp_peer, bgp_afi2family, AFI_IP6, in6_addr, in6_addr__bindgen_ty_1, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t};
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, bgp_peer, in6_addr, in6_addr__bindgen_ty_1, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::os::raw::c_int;
-use libc::{AF_INET, AF_INET6, AF_UNSPEC};
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::MplsLabel;
 use netgauze_bgp_pkt::path_attribute::{MpReach, MpUnreach, PathAttributeValue};
@@ -17,7 +15,6 @@ use crate::error::ParseError;
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::extensions::initiation_information::TlvExtension;
-use crate::extensions::ipaddr::PmacctPrefix;
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::ExtendRd;
@@ -125,14 +122,12 @@ pub extern "C" fn bmp_init_get_tlvs(bmp_init: *const BmpMessageValueOpaque) -> C
 
 free_cslice_t!(bmp_log_tlv);
 
+/// pmacct C code MUST reallocate and copy all values
+/// that need freeing to ensure safe memory freeing from C
 #[repr(C)]
 pub struct ProcessPacket {
     update_type: u32,
-    /// pmacct C code MUST reallocate and copy this value
-    /// to ensure correct freeing from C
     prefix: prefix,
-    /// pmacct C code MUST reallocate and copy this value
-    /// to ensure correct freeing from C
     attr: bgp_attr,
     attr_extra: bgp_attr_extra,
     afi: afi_t,
@@ -250,33 +245,16 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
             };
         }
 
-        // TODO impl From in bindings crate to avoid wrapper types
         fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
             if !mp_reach {
-                attr.nexthop.s_addr = next_hop.to_bits();
+                attr.nexthop = in_addr::from(next_hop);
             } else {
-                attr.mp_nexthop = host_addr {
-                    family: unsafe { bgp_afi2family(AFI_IP as c_int) } as u8,
-                    address: host_addr__bindgen_ty_1 {
-                        ipv4: in_addr {
-                            s_addr: next_hop.to_bits()
-                        }
-                    },
-                };
+                attr.mp_nexthop = host_addr::from(next_hop);
             }
         }
 
         fn fill_attr_ipv6_next_hop(attr: &mut bgp_attr, next_hop: &Ipv6Addr) {
-            attr.mp_nexthop = host_addr {
-                family: unsafe { bgp_afi2family(AFI_IP6 as c_int) } as u8,
-                address: host_addr__bindgen_ty_1 {
-                    ipv6: in6_addr {
-                        __in6_u: in6_addr__bindgen_ty_1 {
-                            __u6_addr8: next_hop.octets()
-                        }
-                    }
-                },
-            };
+            attr.mp_nexthop = host_addr::from(next_hop)
         }
 
         fn fill_attr_mp_next_hop(attr: &mut bgp_attr, next_hop: &IpAddr) {
@@ -304,12 +282,8 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
         }
 
         fn cleanup_mp_reach(attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra) {
-            attr.nexthop = in_addr {
-                s_addr: 0
-            };
-
-            // TODO find how to memset union to zero without UB
-            attr.mp_nexthop.family = unsafe { bgp_afi2family(AF_UNSPEC) } as u8;
+            attr.nexthop = in_addr::default();
+            attr.mp_nexthop = host_addr::default();
 
             attr_extra.path_id = 0;
             attr_extra.label = [0, 0, 0];
@@ -338,7 +312,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                            prefix: prefix::from(nlri.network().address()),
                             attr,
                             attr_extra,
                             afi,
@@ -355,7 +329,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(&nlri.prefix()).unwrap().0,
+                            prefix: prefix::from(&nlri.prefix()),
                             attr,
                             attr_extra,
                             afi,
@@ -374,7 +348,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                            prefix: prefix::from(nlri.network().address()),
                             attr,
                             attr_extra,
                             afi,
@@ -383,8 +357,20 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                     }
                 }
                 MpReach::Ipv6Unicast { next_hop_global, next_hop_local: _, nlri: nlris } => {
+                    fill_attr_ipv6_next_hop(&mut attr, next_hop_global);
 
-                    unimplemented!() // TODO
+                    for nlri in nlris {
+                        fill_path_id(&mut attr_extra, nlri.path_id());
+
+                        result.push(ProcessPacket {
+                            update_type,
+                            prefix: prefix::from(nlri.network().address()),
+                            attr,
+                            attr_extra,
+                            afi,
+                            safi,
+                        });
+                    }
                 },
                 MpReach::Ipv6NlriMplsLabels { next_hop, nlri: nlris } => {
                     fill_attr_mp_next_hop(&mut attr, next_hop);
@@ -395,7 +381,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(&nlri.prefix()).unwrap().0,
+                            prefix: prefix::from(&nlri.prefix()),
                             attr,
                             attr_extra,
                             afi,
@@ -413,7 +399,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                            prefix: prefix::from(nlri.network().address()),
                             attr,
                             attr_extra,
                             afi,
@@ -449,7 +435,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                            prefix: prefix::from(nlri.network().address()),
                             attr,
                             attr_extra,
                             afi,
@@ -464,7 +450,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(&nlri.prefix()).unwrap().0,
+                            prefix: prefix::from(&nlri.prefix()),
                             attr,
                             attr_extra,
                             afi,
@@ -481,7 +467,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                            prefix: prefix::from(nlri.network().address()),
                             attr,
                             attr_extra,
                             afi,
@@ -489,7 +475,21 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                         })
                     }
                 }
-                MpUnreach::Ipv6Unicast { .. } => unimplemented!(), // TODO
+                MpUnreach::Ipv6Unicast { nlri: nlris } => {
+
+                    for nlri in nlris {
+                        fill_path_id(&mut attr_extra, nlri.path_id());
+
+                        result.push(ProcessPacket {
+                            update_type,
+                            prefix: prefix::from(nlri.network().address()),
+                            attr,
+                            attr_extra,
+                            afi,
+                            safi,
+                        })
+                    }
+                },
                 MpUnreach::Ipv6NlriMplsLabels { nlri: nlris } => {
                     for nlri in nlris {
                         fill_path_id(&mut attr_extra, nlri.path_id());
@@ -497,7 +497,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(&nlri.prefix()).unwrap().0,
+                            prefix: prefix::from(&nlri.prefix()),
                             attr,
                             attr_extra,
                             afi,
@@ -513,7 +513,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
                         result.push(ProcessPacket {
                             update_type,
-                            prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                            prefix: prefix::from(nlri.network().address()),
                             attr,
                             attr_extra,
                             afi,
@@ -534,7 +534,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
         for nlri in update.nlri() {
             result.push(ProcessPacket {
                 update_type: BGP_NLRI_UPDATE,
-                prefix: PmacctPrefix::try_from(nlri.network().address()).unwrap().0,
+                prefix: prefix::from(nlri.network().address()),
                 attr,
                 attr_extra,
                 afi: AFI_IP as afi_t,
@@ -545,7 +545,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
         for withdraw in update.withdraw_routes() {
             result.push(ProcessPacket {
                 update_type: BGP_NLRI_WITHDRAW,
-                prefix: PmacctPrefix::try_from(withdraw.network().address()).unwrap().0,
+                prefix: prefix::from(withdraw.network().address()),
                 attr,
                 attr_extra,
                 afi: AFI_IP as afi_t,
@@ -554,7 +554,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
         }
     }
 
-    // TODO make "debuggable" pmacct types and implementing Debug or impl Debug in bindings crate
+    // TODO make "debuggable" pmacct types and implement Debug or impl Debug in bindings crate
     for packet in &result {
         print_process_packet(packet)
     }
@@ -567,28 +567,15 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
 
 #[no_mangle]
 pub extern "C" fn print_process_packet(packet: &ProcessPacket) {
-    let rd_type = packet.attr_extra.rd.type_;
-    let rd_as = packet.attr_extra.rd.as_;
-    let rd_val = packet.attr_extra.rd.val;
-
     println!(
         "ProcessPacket {{
                 update_type: {},
                 afi: {},
                 safi: {},
-                prefix: {{
-                    family: {},
-                    prefix_len: {},
-                    union: {{
-                        {}: {}
-                    }}
-                }},
+                prefix: {:?},
                 attr: {{
                     nexthop: {},
-                    mp_nexthop: {{
-                        family: {}
-                        {}: {},
-                    }}
+                    mp_nexthop: {:?}
                     med: {},
                     local_pref: {},
                     origin: {},
@@ -596,61 +583,24 @@ pub extern "C" fn print_process_packet(packet: &ProcessPacket) {
                 }},
                 attr_extra: {{
                     path_id: {},
-                    rd: {{
-                        type_: {},
-                        as_: {},
-                        val: {}
-                    }},
-                    label: [{}, {}, {}],
+                    rd: {:?},
+                    label: {:?},
                     bitmap: {},
                 }}
             }}",
         if packet.update_type == BGP_NLRI_UPDATE { "BGP_NLRI_UPDATE" } else { "BGP_NLRI_WITHDRAW" },
         packet.afi,
         packet.safi,
-        packet.prefix.family,
-        packet.prefix.prefixlen,
-        if packet.prefix.family == AF_INET as u8 {
-            "prefix4"
-        } else if packet.prefix.family == AF_INET6 as u8 {
-            "prefix6"
-        } else {
-            "prefix_u8"
-        },
-        if packet.prefix.family == AF_INET as u8 {
-            Ipv4Addr::from_bits(unsafe { packet.prefix.u.prefix4.s_addr }).to_string()
-        } else if packet.prefix.family == AF_INET6 as u8 {
-            Ipv6Addr::from(unsafe { packet.prefix.u.prefix6.__in6_u.__u6_addr8 }).to_string()
-        } else {
-            "cannot display".to_string()
-        },
-        Ipv4Addr::from_bits(packet.attr.nexthop.s_addr),
-        packet.attr.mp_nexthop.family,
-        if packet.attr.mp_nexthop.family == AF_INET as u8 {
-            "ipv4"
-        } else if packet.attr.mp_nexthop.family == AF_INET6 as u8 {
-            "ipv6"
-        } else {
-            "prefix_u8"
-        },
-        if packet.attr.mp_nexthop.family == AF_INET as u8 {
-            Ipv4Addr::from_bits(unsafe { packet.attr.mp_nexthop.address.ipv4.s_addr }).to_string()
-        } else if packet.attr.mp_nexthop.family == AF_INET6 as u8 {
-            Ipv6Addr::from(unsafe { packet.attr.mp_nexthop.address.ipv6.__in6_u.__u6_addr8 }).to_string()
-        } else {
-            "cannot display".to_string()
-        },
+        packet.prefix,
+        packet.attr.nexthop,
+        packet.attr.mp_nexthop,
         packet.attr.med,
         packet.attr.local_pref,
         packet.attr.origin,
         packet.attr.bitmap,
         packet.attr_extra.path_id,
-        rd_type,
-        rd_as,
-        rd_val,
-        packet.attr_extra.label[0],
-        packet.attr_extra.label[1],
-        packet.attr_extra.label[2],
+        packet.attr_extra.rd,
+        packet.attr_extra.label,
         packet.attr_extra.bitmap,
     )
 }
