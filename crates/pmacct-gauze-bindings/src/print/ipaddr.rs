@@ -7,7 +7,7 @@ use libc::{c_int, AF_INET, AF_INET6};
 // TODO move ip conversions to crate::convert
 impl Display for in_addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&Ipv4Addr::from_bits(self.s_addr), f)
+        Display::fmt(&Ipv4Addr::from_bits(u32::from_be(self.s_addr)), f)
     }
 }
 
@@ -47,7 +47,7 @@ impl Debug for host_addr {
                     debug.field("address.ipv6", &self.address.ipv6);
                 }
                 _ => {
-                    debug.field("address.unknown!", &self.address.ipv6.__in6_u.__u6_addr8);
+                    debug.field("address.unknown!", &"cannot display");
                 }
             }
         }
@@ -61,7 +61,7 @@ impl Display for host_addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.family as i32 {
             AF_INET => unsafe {
-                Display::fmt(&Ipv4Addr::from_bits(self.address.ipv4.s_addr), f)
+                Display::fmt(&Ipv4Addr::from_bits(u32::from_be(self.address.ipv4.s_addr)), f)
             }
             AF_INET6 => unsafe {
                 Display::fmt(&Ipv6Addr::from(self.address.ipv6.__in6_u.__u6_addr8), f)
