@@ -22,3 +22,6 @@
 #include <pmacct/src/bgp/bgp_packet.h>
 #include <pmacct/src/bgp/bgp_util.h>
 #include <pmacct/src/bgp/bgp_aspath.h>
+#include <pmacct/src/bgp/bgp_community.h>
+#include <pmacct/src/bgp/bgp_lcommunity.h>
+#include <pmacct/src/bgp/bgp_ecommunity.h>

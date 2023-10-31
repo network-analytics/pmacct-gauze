@@ -72,6 +72,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .allowlist_file(format!("{header_location}/src/bgp/bgp_util.h"))
         .allowlist_file(format!("{header_location}/src/bgp/bgp_packet.h"))
         .allowlist_file(format!("{header_location}/src/bgp/bgp_aspath.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp_community.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp_lcommunity.h"))
+        .allowlist_file(format!("{header_location}/src/bgp/bgp_ecommunity.h"))
         .allowlist_file(format!("{header_location}/src/network.h"))
         // Finish the builder and generate the bindings.
         .generate()

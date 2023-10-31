@@ -4,7 +4,7 @@ use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{Span, WritablePdu};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, bgp_peer, in6_addr, in6_addr__bindgen_ty_1, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t};
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, host_addr__bindgen_ty_1, rd_as, bgp_peer, in6_addr, in6_addr__bindgen_ty_1, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
 use std::fmt::{Debug, Formatter};
@@ -16,6 +16,7 @@ use netgauze_bgp_pkt::path_attribute::{MpReach, MpUnreach, PathAttributeValue};
 use crate::error::ParseError;
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::bmp_message::ExtendBmpMessage;
+use crate::extensions::community::{ExtendLargeCommunity, ExtendExtendedCommunity};
 use crate::extensions::initiation_information::TlvExtension;
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
@@ -221,7 +222,7 @@ impl Debug for ProcessPacket {
 
 // TODO use ParseError
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const BmpMessageValueOpaque) -> COption<CSlice<ProcessPacket>> {
+pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const BmpMessageValueOpaque) -> COption<CSlice<ProcessPacket>> {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
 
     let bmp_rm = match &bmp_rm.0 {
@@ -287,10 +288,51 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                 // the getters expect a raw pointer to the wire bytes
                 PathAttributeValue::AsPath(_) => {}
                 PathAttributeValue::As4Path(_) => {}
-                PathAttributeValue::Communities(_) => {}
-                PathAttributeValue::LargeCommunities(_) => {}
-                PathAttributeValue::ExtendedCommunities(_) => {}
-                PathAttributeValue::ExtendedCommunitiesIpv6(_) => {}
+                PathAttributeValue::Communities(communities) => {
+
+                    let com = unsafe {
+                        community_new(peer)
+                    };
+
+                    for community in communities.communities() {
+                        unsafe {
+                            community_add_val(peer, com, community.value());
+                        }
+                    }
+
+                    attr.community = com;
+                }
+                PathAttributeValue::LargeCommunities(large_communities) => {
+
+                    let lcom = unsafe {
+                        lcommunity_new(peer)
+                    };
+
+                    for lcommunity in large_communities.communities() {
+
+                        let mut val = lcommunity.to_lcommunity_val();
+                        unsafe {
+                            lcommunity_add_val(peer, lcom, &mut val as *mut lcommunity_val);
+                        }
+                    }
+
+                    attr.lcommunity = lcom;
+                }
+                PathAttributeValue::ExtendedCommunities(extended_communities) => {
+
+                    let ecom = unsafe {
+                        ecommunity_new(peer)
+                    };
+
+                    for ecommunity in extended_communities.communities() {
+                        let mut val = ecommunity.to_ecommunity_val();
+                        unsafe {
+                            ecommunity_add_val(peer, ecom, &mut val as *mut ecommunity_val);
+                        }
+                    }
+
+                    attr.ecommunity = ecom;
+                }
 
                 // straightforward primitives
                 PathAttributeValue::Origin(origin) => attr.origin = (*origin).into(),
@@ -318,6 +360,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(_peer: *mut bgp_peer, bmp_rm: *const B
                 }
 
                 PathAttributeValue::AtomicAggregate(_)
+                | PathAttributeValue::ExtendedCommunitiesIpv6(_)
                 | PathAttributeValue::Aggregator(_)
                 | PathAttributeValue::Originator(_)
                 | PathAttributeValue::ClusterList(_)
