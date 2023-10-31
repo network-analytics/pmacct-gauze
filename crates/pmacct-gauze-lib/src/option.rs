@@ -1,4 +1,5 @@
 #[repr(C)]
+#[derive(Debug)]
 pub enum COption<T> {
     None,
     Some(T),

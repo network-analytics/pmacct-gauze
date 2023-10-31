@@ -10,10 +10,8 @@ pub struct CSlice<T> {
     pub cap: usize,
 }
 
-
 impl<T> CSlice<T> {
     pub unsafe fn from_vec(value: Vec<T>) -> Self {
-
         let (ptr, len, cap) = value.into_raw_parts();
         CSlice {
             base_ptr: ptr,
@@ -21,6 +19,12 @@ impl<T> CSlice<T> {
             end_ptr: ptr.add(len),
             len,
             cap,
+        }
+    }
+
+    pub fn rust_free(self) {
+        unsafe {
+            drop(Vec::from_raw_parts(self.base_ptr, self.len, self.cap));
         }
     }
 }

@@ -7,7 +7,17 @@ use ipnet::{Ipv4Net, Ipv6Net};
 impl From<&Ipv4Addr> for in_addr {
     fn from(value: &Ipv4Addr) -> Self {
         in_addr {
-            s_addr: value.to_bits(),
+            s_addr: value.to_bits().to_be(),
+        }
+    }
+}
+
+impl From<&Ipv6Addr> for in6_addr {
+    fn from(value: &Ipv6Addr) -> Self {
+        in6_addr {
+            __in6_u: in6_addr__bindgen_ty_1 {
+                __u6_addr8: value.octets()
+            },
         }
     }
 }
@@ -20,16 +30,6 @@ impl From<&Ipv4Net> for prefix {
             __bindgen_padding_0: 0,
             u: prefix__bindgen_ty_1 {
                 prefix4: (&value.network()).into()
-            },
-        }
-    }
-}
-
-impl From<&Ipv6Addr> for in6_addr {
-    fn from(value: &Ipv6Addr) -> Self {
-        in6_addr {
-            __in6_u: in6_addr__bindgen_ty_1 {
-                __u6_addr8: value.octets()
             },
         }
     }
@@ -92,10 +92,22 @@ impl Default for host_addr {
     fn default() -> Self {
         host_addr {
             family: 0,
-            // use the ipv6 union variant because it's the biggest the whole union size
+            // use the ipv6 union variant because, as the largest, it defines the union size
             address: host_addr__bindgen_ty_1 {
                 ipv6: in6_addr::default()
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+    use crate::in_addr;
+
+    #[test]
+    fn in_addr_from_ipv4_addr() {
+        let ip = Ipv4Addr::new(254, 1, 128, 127);
+        let other = in_addr::from(&ip);
     }
 }

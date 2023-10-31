@@ -8,6 +8,7 @@ use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, b
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
 use std::fmt::{Debug, Formatter};
+use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::MplsLabel;
@@ -19,6 +20,7 @@ use crate::extensions::initiation_information::TlvExtension;
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::ExtendRd;
+use crate::free_cslice_named_with_item_free;
 use crate::macros::free_cslice_t;
 use crate::option::COption;
 use crate::slice::CSlice;
@@ -39,6 +41,7 @@ pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct ParsedBmp {
     common_header: bmp_common_hdr,
     peer_header: COption<bmp_peer_hdr>,
@@ -46,12 +49,14 @@ pub struct ParsedBmp {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct ParseOk<T> {
     read_bytes: u32,
     pub parsed: T,
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum ParseResultEnum<T> {
     ParseSuccess(ParseOk<T>),
     ParseFailure(ParseError),
@@ -66,9 +71,7 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u3
     if let Ok((end_span, msg)) = result {
         let read_bytes = span.offset(&end_span) as u32;
 
-        // println!("netgauze {} bytes read", read_bytes);
-
-        return ParseResultEnum::ParseSuccess(ParseOk {
+        let result = ParseResultEnum::ParseSuccess(ParseOk {
             read_bytes,
             parsed: ParsedBmp {
                 common_header: bmp_common_hdr {
@@ -82,6 +85,10 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u3
                 })),
             },
         });
+        // println!("netgauze {} bytes read", read_bytes);
+        // println!("netgauze result {:#?}", result);
+
+        return result;
     }
 
     let err = result.err().unwrap();
@@ -123,6 +130,54 @@ pub extern "C" fn bmp_init_get_tlvs(bmp_init: *const BmpMessageValueOpaque) -> C
 
 free_cslice_t!(bmp_log_tlv);
 
+#[no_mangle]
+pub extern "C" fn netgauze_bgp_parse_nlri_naive_copy(bmp_rm: *const BmpMessageValueOpaque) -> CSlice<CSlice<u8>> {
+    let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
+
+    let bmp_rm = match &bmp_rm.0 {
+        BmpMessageValue::RouteMonitoring(rm) => {
+            rm
+        }
+        _ => unreachable!()
+    };
+
+    let mut result = Vec::with_capacity(bmp_rm.updates().len());
+
+    for update in bmp_rm.updates() {
+        let mut buf = Vec::with_capacity(update.len());
+        let written = {
+            let mut writer = BufWriter::new(&mut buf);
+            update.write(&mut writer)
+        };
+
+        let buf = if let Ok(_) = written {
+            unsafe {
+                CSlice::from_vec(buf)
+            }
+        } else {
+            CSlice {
+                base_ptr: ptr::null_mut(),
+                stride: 0,
+                end_ptr: ptr::null_mut(),
+                len: 0,
+                cap: 0,
+            }
+        };
+
+        result.push(buf);
+    }
+
+    println!("{:#?}", result);
+
+    let result = unsafe {
+        CSlice::from_vec(result)
+    };
+
+    result
+}
+
+free_cslice_named_with_item_free!(CSlice::<u8>, CSlice_u8);
+
 /// pmacct C code MUST reallocate and copy all values
 /// that need freeing to ensure safe memory freeing from C
 #[repr(C)]
@@ -162,6 +217,7 @@ impl Debug for ProcessPacket {
         debug.finish()
     }
 }
+
 
 // TODO use ParseError
 #[no_mangle]
