@@ -12,6 +12,12 @@ impl From<&Ipv4Addr> for in_addr {
     }
 }
 
+impl From<&in_addr> for Ipv4Addr {
+    fn from(value: &in_addr) -> Self {
+        Ipv4Addr::from_bits(u32::from_be(value.s_addr))
+    }
+}
+
 impl From<&Ipv6Addr> for in6_addr {
     fn from(value: &Ipv6Addr) -> Self {
         in6_addr {
@@ -21,6 +27,15 @@ impl From<&Ipv6Addr> for in6_addr {
         }
     }
 }
+
+impl From<&in6_addr> for Ipv6Addr {
+    fn from(value: &in6_addr) -> Self {
+        unsafe {
+            Ipv6Addr::from(value.__in6_u.__u6_addr8)
+        }
+    }
+}
+
 
 impl From<&Ipv4Net> for prefix {
     fn from(value: &Ipv4Net) -> Self {

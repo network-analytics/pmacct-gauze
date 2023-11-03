@@ -3,20 +3,16 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use crate::{host_addr, in6_addr, in_addr};
 use libc::{c_int, AF_INET, AF_INET6};
 
-
-// TODO move ip conversions to crate::convert
 impl Display for in_addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&Ipv4Addr::from_bits(u32::from_be(self.s_addr)), f)
+        Display::fmt(&Ipv4Addr::from(self), f)
     }
 }
 
 
 impl Display for in6_addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            Display::fmt(&Ipv6Addr::from(self.__in6_u.__u6_addr8), f)
-        }
+        Display::fmt(&Ipv6Addr::from(self), f)
     }
 }
 
