@@ -3,7 +3,6 @@
 #![feature(ptr_metadata)]
 #![feature(ip_bits)]
 
-// TODO use pmacct logger instead of println!
 // TODO add testing that validates return values using C functions
 
 #[cfg(feature = "capi")]
@@ -18,6 +17,10 @@ pub mod error;
 pub mod slice;
 #[macro_use]
 pub mod macros;
+
+#[cfg(feature = "capi")]
+pub mod log;
+
 #[cfg(test)]
 mod tests {
     #[test]

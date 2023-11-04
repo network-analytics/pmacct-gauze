@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Display, Formatter};
 use std::slice;
 use crate::community;
 

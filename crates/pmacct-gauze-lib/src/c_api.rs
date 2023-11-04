@@ -4,7 +4,7 @@ use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{Span, WritablePdu};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, rd_as, bgp_peer, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val, community_com2str};
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, rd_as, bgp_peer, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
 use std::fmt::{Debug, Formatter};
@@ -21,6 +21,7 @@ use crate::extensions::initiation_information::TlvExtension;
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::ExtendRd;
+use crate::log::{LogPriority, pmacct_log};
 use crate::macros::free_cslice_t;
 use crate::option::COption;
 use crate::slice::CSlice;
@@ -85,15 +86,12 @@ pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u3
                 })),
             },
         });
-        // println!("netgauze {} bytes read", read_bytes);
-        // println!("netgauze result {:#?}", result);
 
         return result;
     }
 
     let err = result.err().unwrap();
     // TODO special EoF error
-
 
     let netgauze_error = CString::new(err.to_string()).unwrap();
 
@@ -287,7 +285,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     }
                 }
                 */
-                
+
                 attr.community = com;
             }
             PathAttributeValue::LargeCommunities(large_communities) => {
@@ -337,12 +335,12 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             // TODO error if already present
             PathAttributeValue::MpReach(mp_reach_attr) => {
                 if let Some(_) = mp_reach.replace(mp_reach_attr) {
-                    println!("[pmacct-gauze] warn! multiple mp_reach is not supported. ignoring previous mp_reach.")
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_reach is not supported. ignoring previous mp_reach.")
                 }
             }
             PathAttributeValue::MpUnreach(mp_unreach_attr) => {
                 if let Some(_) = mp_unreach.replace(mp_unreach_attr) {
-                    println!("[pmacct-gauze] warn! multiple mp_unreach is not supported. ignoring previous mp_unreach.")
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_unreach is not supported. ignoring previous mp_unreach.")
                 }
             }
 
@@ -352,10 +350,11 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             | PathAttributeValue::Originator(_)
             | PathAttributeValue::ClusterList(_)
             | PathAttributeValue::UnknownAttribute(_) => {
-                println!("[pmacct-gauze] warn! attribute type {} is not supported by pmacct",
-                         _attr.get_type()
-                             .map(|__attr| __attr as u8)
-                             .unwrap_or_else(|unknown| unknown.code()))
+                pmacct_log(LogPriority::Warning,
+                           &format!("[pmacct-gauze] warn! attribute type {} is not supported by pmacct",
+                                   _attr.get_type()
+                                       .map(|__attr| __attr as u8)
+                                       .unwrap_or_else(|unknown| unknown.code())))
             }
         };
     }

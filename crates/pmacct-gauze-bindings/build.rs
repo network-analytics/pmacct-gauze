@@ -23,7 +23,7 @@ impl ParseCallbacks for IgnoreMacros {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let header_location = option_env!("PMACCT_HEADER_DIR").unwrap_or("/usr/local/include/pmacct");
+    let header_location = option_env!("PMACCT_HEADER_DIR").unwrap_or("/usr/local/include");
 
     // Tell cargo to look for shared libraries in the specified directory
     println!(
@@ -66,16 +66,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         .parse_callbacks(name_mappings_cb)
         //.c_naming(true)
         //.depfile("netgauze", "/tmp/depfile")
-        .allowlist_file(format!("{header_location}/src/bmp/bmp_logdump.h"))
-        .allowlist_file(format!("{header_location}/src/bmp/bmp.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp_util.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp_packet.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp_aspath.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp_community.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp_lcommunity.h"))
-        .allowlist_file(format!("{header_location}/src/bgp/bgp_ecommunity.h"))
-        .allowlist_file(format!("{header_location}/src/network.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp_logdump.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_util.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_packet.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_aspath.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_community.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_lcommunity.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_ecommunity.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/network.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/log.h"))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
