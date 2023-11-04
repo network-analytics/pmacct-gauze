@@ -23,16 +23,10 @@ impl ParseCallbacks for IgnoreMacros {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let header_location = option_env!("PMACCT_HEADER_DIR").unwrap_or("/usr/local/include");
-
-    // Tell cargo to look for shared libraries in the specified directory
-    println!(
-        "cargo:rustc-link-search={}",
-        option_env!("LINK_SEARCH_DIR").unwrap_or("/usr/local/lib")
-    );
-
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=imported.h");
+    println!("cargo:rerun-if-env-changed=PMACCT_INCLUDE_DIR");
+    let header_location = option_env!("PMACCT_INCLUDE_DIR")
+        .unwrap_or("/usr/local/include")
+        .trim_end_matches(std::path::MAIN_SEPARATOR_STR);
 
     println!("Running build.rs");
 
@@ -45,8 +39,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "FP_ZERO".into(),
             "IPPORT_RESERVED".into(),
         ]
-        .into_iter()
-        .collect(),
+            .into_iter()
+            .collect(),
     );
 
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));
@@ -59,13 +53,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         // The input header we would like to generate
         // bindings for.
         .header("imported.h")
+        .clang_arg(format!("-I{header_location}"))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .parse_callbacks(Box::new(ignored_macros))
         .parse_callbacks(name_mappings_cb)
-        //.c_naming(true)
-        //.depfile("netgauze", "/tmp/depfile")
         .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp_logdump.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp.h"))
