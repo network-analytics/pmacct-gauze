@@ -24,6 +24,8 @@ impl<T> FromResidual for ParseResultEnum<T> {
     }
 }
 
+// TODO make error generic in ParseError
+// TODO rename ParseError to CResult
 
 #[repr(C)]
 #[derive(Clone, PartialEq, Eq, Debug)]

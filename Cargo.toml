@@ -4,6 +4,3 @@ members = [
     "crates/pmacct-gauze-bindings"
 ]
 resolver = "2"
-
-[toolchain]
-channel = "nightly"

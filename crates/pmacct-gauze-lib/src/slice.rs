@@ -1,4 +1,5 @@
 use core::mem::size_of;
+use std::ptr;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -22,9 +23,23 @@ impl<T> CSlice<T> {
         }
     }
 
+    pub unsafe fn to_vec(self) -> Vec<T> {
+        Vec::from_raw_parts(self.base_ptr, self.len, self.cap)
+    }
+
     pub fn rust_free(self) {
         unsafe {
-            drop(Vec::from_raw_parts(self.base_ptr, self.len, self.cap));
+            self.to_vec();
+        }
+    }
+
+    pub fn dummy() -> Self {
+        Self {
+            base_ptr: ptr::null_mut(),
+            stride: 0,
+            end_ptr: ptr::null_mut(),
+            len: 0,
+            cap: 0,
         }
     }
 }

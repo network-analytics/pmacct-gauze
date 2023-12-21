@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
-use netgauze_parse_utils::{Span, WritablePdu};
+use netgauze_parse_utils::{Span, WritablePdu, WritablePduWithOneInput};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, rd_as, bgp_peer, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val};
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, rd_as, bgp_peer, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val, aspath_parse, aspath, aspath_free, community, ecommunity, lcommunity, aspath_reconcile_as4};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
 use std::fmt::{Debug, Formatter};
@@ -12,7 +12,7 @@ use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::MplsLabel;
-use netgauze_bgp_pkt::path_attribute::{MpReach, MpUnreach, PathAttributeValue};
+use netgauze_bgp_pkt::path_attribute::{As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue};
 use crate::error::ParseError;
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::bmp_message::ExtendBmpMessage;
@@ -180,6 +180,8 @@ pub struct ProcessPacket {
     attr_extra: bgp_attr_extra,
 }
 
+free_cslice_t!(ProcessPacket);
+
 #[repr(transparent)]
 struct DebugUpdateType(u32);
 
@@ -208,10 +210,60 @@ impl Debug for ProcessPacket {
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct BgpParsedAttributes {
+    aspath: *mut aspath,
+    community: *mut community,
+    ecommunity: *mut ecommunity,
+    lcommunity: *mut lcommunity,
+}
+
+impl Default for BgpParsedAttributes {
+    fn default() -> Self {
+        Self {
+            aspath: ptr::null_mut(),
+            community: ptr::null_mut(),
+            ecommunity: ptr::null_mut(),
+            lcommunity: ptr::null_mut(),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct BgpParseResult {
+    packets: CSlice<ProcessPacket>,
+    update_count: usize,
+}
+
+
+pub fn reconcile_as24path(as_path: *mut aspath, as4_path: *mut aspath) -> *mut aspath {
+
+    if !as_path.is_null() && !as4_path.is_null() {
+        let reconciled = unsafe { aspath_reconcile_as4(as_path, as4_path) };
+        if !reconciled.is_null() {
+
+            unsafe {
+                aspath_free(as_path);
+                aspath_free(as4_path);
+            }
+
+            return reconciled;
+        }
+    }
+
+    if !as_path.is_null() {
+        return as_path;
+    }
+
+    return as4_path;
+}
+
 
 // TODO use ParseError
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const BmpMessageValueOpaque) -> COption<CSlice<ProcessPacket>> {
+pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const BmpMessageValueOpaque) -> BgpParseResult {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
 
     let bmp_rm = match &bmp_rm.0 {
@@ -226,7 +278,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         _ => unreachable!()
     };
 
-    let mut result = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
+    let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
 
     let mut mp_reach = None;
     let mut mp_unreach = None;
@@ -260,12 +312,46 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         otc: 0, // TODO not supported in netgauze?
     };
 
+    let mut as_path = ptr::null_mut();
+    let mut as4_path = ptr::null_mut();
+
     for _attr in update.path_attributes() {
         match _attr.value() {
-            // TODO pointer references need to get them from a cache but
-            // the getters expect a raw pointer to the wire bytes
-            PathAttributeValue::AsPath(_) => {}
-            PathAttributeValue::As4Path(_) => {}
+            PathAttributeValue::AsPath(aspath) => {
+
+                let extended_length = _attr.extended_length();
+                let mut bytes = Vec::with_capacity(aspath.len(extended_length));
+                let bytes = {
+                    let skip_length_offset = AsPath::BASE_LENGTH + usize::from(extended_length);
+                    let mut writer = BufWriter::new(&mut bytes);
+                    let _ = aspath.write(&mut writer, extended_length); // todo handle error
+                    drop(writer);
+                    bytes.split_at(skip_length_offset).1
+                };
+
+                as_path = unsafe {
+                    aspath_parse(peer, bytes.as_ptr() as *mut i8, bytes.len(), !peer.read().cap_4as.is_null() as i32)
+                };
+
+                attr.aspath = reconcile_as24path(as_path, as4_path);
+            }
+            PathAttributeValue::As4Path(as4path) => {
+                let extended_length = _attr.extended_length();
+                let mut bytes = Vec::with_capacity(as4path.len(extended_length));
+                let bytes = {
+                    let skip_length_offset = As4Path::BASE_LENGTH + usize::from(extended_length);
+                    let mut writer = BufWriter::new(&mut bytes);
+                    let _ = as4path.write(&mut writer, extended_length); // todo handle error
+                    drop(writer);
+                    bytes.split_at(skip_length_offset).1
+                };
+
+                as4_path = unsafe {
+                    aspath_parse(peer, bytes.as_ptr() as *mut i8, bytes.len(), !peer.read().cap_4as.is_null() as i32)
+                };
+
+                attr.aspath = reconcile_as24path(as_path, as4_path);
+            }
             PathAttributeValue::Communities(communities) => {
                 let com = unsafe {
                     community_new(peer)
@@ -276,15 +362,6 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                         community_add_val(peer, com, community.value());
                     }
                 }
-
-                /*
-                unsafe {
-                    if !com.is_null() {
-                        com.as_mut().unwrap().str_ = community_com2str(peer, com);
-                        println!("parsed communities {}", com);
-                    }
-                }
-                */
 
                 attr.community = com;
             }
@@ -352,15 +429,15 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             | PathAttributeValue::UnknownAttribute(_) => {
                 pmacct_log(LogPriority::Warning,
                            &format!("[pmacct-gauze] warn! attribute type {} is not supported by pmacct",
-                                   _attr.get_type()
-                                       .map(|__attr| __attr as u8)
-                                       .unwrap_or_else(|unknown| unknown.code())))
+                                    _attr.get_type()
+                                        .map(|__attr| __attr as u8)
+                                        .unwrap_or_else(|unknown| unknown.code())))
             }
         };
     }
 
     for nlri in update.nlri() {
-        result.push(ProcessPacket {
+        packets.push(ProcessPacket {
             update_type: BGP_NLRI_UPDATE,
             prefix: prefix::from(nlri.network().address()),
             attr,
@@ -371,7 +448,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
     }
 
     for withdraw in update.withdraw_routes() {
-        result.push(ProcessPacket {
+        packets.push(ProcessPacket {
             update_type: BGP_NLRI_WITHDRAW,
             prefix: prefix::from(withdraw.network().address()),
             attr,
@@ -446,7 +523,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -463,7 +540,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.labels());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(&nlri.prefix()),
                         attr,
@@ -482,7 +559,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     attr_extra.rd = nlri.rd().to_rd_t();
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -498,7 +575,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -515,7 +592,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.labels());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(&nlri.prefix()),
                         attr,
@@ -533,7 +610,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
                     attr_extra.rd = nlri.rd().to_rd_t();
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -569,7 +646,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -584,7 +661,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.labels());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(&nlri.prefix()),
                         attr,
@@ -601,7 +678,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     attr_extra.rd = nlri.rd().to_rd_t();
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -615,7 +692,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -630,7 +707,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.labels());
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(&nlri.prefix()),
                         attr,
@@ -646,7 +723,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
                     attr_extra.rd = nlri.rd().to_rd_t();
 
-                    result.push(ProcessPacket {
+                    packets.push(ProcessPacket {
                         update_type,
                         prefix: prefix::from(nlri.network().address()),
                         attr,
@@ -666,18 +743,17 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         }
     }
 
-    for (idx, packet) in result.iter().enumerate() {
-        println!("Packet [{}/{}] {:#?}", idx + 1, result.len(), packet);
+    for (idx, packet) in packets.iter().enumerate() {
+        // println!("Packet [{}/{}] {:#?}", idx + 1, packets.len(), packet);
     }
-    let result = unsafe {
-        CSlice::from_vec(result)
-    };
 
-    COption::Some(result)
+    unsafe {
+        BgpParseResult {
+            update_count: packets.iter().filter(|x| x.update_type == BGP_NLRI_UPDATE).count(),
+            packets: CSlice::from_vec(packets),
+        }
+    }
 }
-
-free_cslice_t!(ProcessPacket);
-
 
 #[no_mangle]
 pub extern "C" fn nonce10() {}

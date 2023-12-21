@@ -29,6 +29,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .trim_end_matches(std::path::MAIN_SEPARATOR_STR);
 
     println!("Running build.rs");
+    println!("[config]");
+    println!("PMACCT_INCLUDE_DIR = {header_location}");
+
 
     let ignored_macros = IgnoreMacros(
         vec![
