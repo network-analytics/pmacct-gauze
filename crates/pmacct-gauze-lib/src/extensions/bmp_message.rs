@@ -2,13 +2,13 @@ use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, PeerHeader};
 use pmacct_gauze_bindings::bmp_peer_hdr;
-use crate::error::ParseError;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
 use crate::extensions::rd::{ExtendRd, RouteDistinguisherBytes};
+use crate::result::bmp_result::BmpParseError;
 
 pub trait ExtendBmpMessage {
     fn get_peer_header(&self) -> Option<&PeerHeader>;
-    fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, ParseError>;
+    fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, BmpParseError>;
 }
 
 impl ExtendBmpMessage for BmpMessage {
@@ -31,7 +31,7 @@ impl ExtendBmpMessage for BmpMessage {
         }
     }
 
-    fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, ParseError> {
+    fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, BmpParseError> {
         let peer_hdr = if let Some(peer_hdr) = self.get_peer_header() {
             peer_hdr
         } else {
@@ -51,12 +51,12 @@ impl ExtendBmpMessage for BmpMessage {
     }
 }
 
-impl From<RouteDistinguisherWritingError> for ParseError {
+impl From<RouteDistinguisherWritingError> for BmpParseError {
     fn from(_: RouteDistinguisherWritingError) -> Self {
-        Self::RouteDistinguisherError
+        Self::RouteDistinguisher
     }
 }
 
-impl From<IpAddrWritingError> for ParseError {
-    fn from(_: IpAddrWritingError) -> Self { Self::IpAddrError }
+impl From<IpAddrWritingError> for BmpParseError {
+    fn from(_: IpAddrWritingError) -> Self { Self::IpAddr }
 }

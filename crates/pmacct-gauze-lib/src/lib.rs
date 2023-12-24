@@ -12,9 +12,10 @@ pub mod c_api;
 #[cfg(feature = "capi")]
 pub mod option;
 #[cfg(feature = "capi")]
-pub mod error;
+pub mod result;
 #[cfg(feature = "capi")]
 pub mod slice;
+
 #[macro_use]
 pub mod macros;
 
