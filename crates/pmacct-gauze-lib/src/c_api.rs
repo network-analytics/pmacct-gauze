@@ -4,7 +4,7 @@ use libc;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{Span, WritablePdu, WritablePduWithOneInput};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, rd_as, bgp_peer, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val, aspath_parse, aspath, aspath_free, community, ecommunity, lcommunity, aspath_reconcile_as4};
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr, bmp_log_tlv, prefix, bgp_attr, bgp_attr_extra, BGP_NLRI_UPDATE, AFI_IP, SAFI_UNICAST, afi_t, safi_t, BGP_NLRI_WITHDRAW, in_addr, host_addr, rd_as, bgp_peer, path_id_t, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_BMAP_ATTR_LOCAL_PREF, BGP_ORIGIN_UNKNOWN, rd_t, community_new, community_add_val, lcommunity_new, lcommunity_add_val, lcommunity_val, ecommunity_new, ecommunity_val, ecommunity_add_val, aspath_parse, aspath, aspath_free, community, ecommunity, lcommunity, aspath_reconcile_as4, BGP_BMAP_ATTR_AIGP};
 use netgauze_parse_utils::ReadablePduWithOneInput;
 use std::{ptr, slice};
 use std::fmt::{Debug, Formatter};
@@ -12,7 +12,7 @@ use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::MplsLabel;
-use netgauze_bgp_pkt::path_attribute::{As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue};
+use netgauze_bgp_pkt::path_attribute::{Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue};
 use netgauze_bgp_pkt::update::BgpUpdateMessage;
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::bmp_message::ExtendBmpMessage;
@@ -37,7 +37,7 @@ pub struct BgpUpdateMessageOpaque(BgpUpdateMessage);
 pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
     let s = unsafe { slice::from_raw_parts(buffer as *const u8, len as usize) };
     let span = Span::new(s);
-    if let Ok((end_span, msg)) = BmpMessage::from_wire(span, &HashMap::new()) {
+    if let Ok((end_span, msg)) = BmpMessage::from_wire(span, &mut HashMap::new()) {
         println!("span: ptr: {:?} | value {:?}", span.as_ptr(), span);
         println!("msg: {:?}", msg);
         return span.offset(&end_span) as u32;
@@ -59,7 +59,7 @@ pub struct ParsedBmp {
 pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u32) -> BmpResult {
     let s = unsafe { slice::from_raw_parts(buffer as *const u8, buf_len as usize) };
     let span = Span::new(s);
-    let result = BmpMessage::from_wire(span, &HashMap::new());
+    let result = BmpMessage::from_wire(span, &mut HashMap::new());
     if let Ok((end_span, msg)) = result {
         let read_bytes = span.offset(&end_span) as u32;
 
@@ -258,10 +258,10 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
     let mut mp_unreach = None;
 
     let mut attr = bgp_attr {
-        aspath: ptr::null_mut(), // TODO figure out a solution for cached values
-        community: ptr::null_mut(), // TODO figure out a solution for cached values
-        ecommunity: ptr::null_mut(), // TODO figure out a solution for cached values
-        lcommunity: ptr::null_mut(), // TODO figure out a solution for cached values
+        aspath: ptr::null_mut(),
+        community: ptr::null_mut(),
+        ecommunity: ptr::null_mut(),
+        lcommunity: ptr::null_mut(),
         refcnt: 0, // TODO see how this works in pmacct (prob. intern/unintern)
         flag: 0,
         nexthop: in_addr::default(),
@@ -281,14 +281,15 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
         },
         label: [0, 0, 0],
         path_id: 0,
-        aigp: 0, // TODO not supported in netgauze?
+        aigp: 0,
         psid_li: 0, // TODO not supported in netgauze?
-        otc: 0, // TODO not supported in netgauze?
+        otc: 0,
     };
 
     let mut as_path = ptr::null_mut();
     let mut as4_path = ptr::null_mut();
 
+    // TODO free allocated C structs on error
     for _attr in update.path_attributes() {
         match _attr.value() {
             PathAttributeValue::AsPath(aspath) => {
@@ -379,21 +380,25 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             }
 
             PathAttributeValue::NextHop(next_hop) => {
-                fill_attr_ipv4_next_hop(&mut attr, next_hop.next_hop(), false)
+                fill_attr_ipv4_next_hop(&mut attr, &next_hop.next_hop(), false)
             }
 
             // TODO error if already present
             PathAttributeValue::MpReach(mp_reach_attr) => {
                 if let Some(_) = mp_reach.replace(mp_reach_attr) {
-                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_reach is not supported. ignoring previous mp_reach.")
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_reach is not supported. ignoring previous mp_reach.\n")
                 }
             }
             PathAttributeValue::MpUnreach(mp_unreach_attr) => {
                 if let Some(_) = mp_unreach.replace(mp_unreach_attr) {
-                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_unreach is not supported. ignoring previous mp_unreach.")
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_unreach is not supported. ignoring previous mp_unreach.\n")
                 }
             }
-
+            PathAttributeValue::OnlyToCustomer(otc) => attr_extra.otc = otc.asn(),
+            PathAttributeValue::Aigp(Aigp::AccumulatedIgpMetric(aigp)) => {
+                attr_extra.bitmap |= BGP_BMAP_ATTR_AIGP as u8;
+                attr_extra.aigp = *aigp
+            },
             PathAttributeValue::AtomicAggregate(_)
             | PathAttributeValue::ExtendedCommunitiesIpv6(_)
             | PathAttributeValue::Aggregator(_)
@@ -401,7 +406,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
             | PathAttributeValue::ClusterList(_)
             | PathAttributeValue::UnknownAttribute(_) => {
                 pmacct_log(LogPriority::Warning,
-                           &format!("[pmacct-gauze] warn! attribute type {} is not supported by pmacct",
+                           &format!("[pmacct-gauze] warn! attribute type {} is not supported by pmacct\n",
                                     _attr.get_type()
                                         .map(|__attr| __attr as u8)
                                         .unwrap_or_else(|unknown| unknown.code())))
@@ -412,7 +417,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
     for nlri in update.nlri() {
         packets.push(ProcessPacket {
             update_type: BGP_NLRI_UPDATE,
-            prefix: prefix::from(nlri.network().address()),
+            prefix: prefix::from(&nlri.network().address()),
             attr,
             attr_extra,
             afi: AFI_IP as afi_t,
@@ -423,7 +428,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
     for withdraw in update.withdraw_routes() {
         packets.push(ProcessPacket {
             update_type: BGP_NLRI_WITHDRAW,
-            prefix: prefix::from(withdraw.network().address()),
+            prefix: prefix::from(&withdraw.network().address()),
             attr,
             attr_extra,
             afi: AFI_IP as afi_t,
@@ -432,10 +437,10 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
     }
 
     fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
-        if !mp_reach {
-            attr.nexthop = in_addr::from(next_hop);
-        } else {
+        if mp_reach {
             attr.mp_nexthop = host_addr::from(next_hop);
+        } else {
+            attr.nexthop = in_addr::from(next_hop);
         }
     }
 
@@ -445,8 +450,12 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
     fn fill_attr_mp_next_hop(attr: &mut bgp_attr, next_hop: &IpAddr) {
         match next_hop {
-            IpAddr::V4(ipv4) => fill_attr_ipv4_next_hop(attr, ipv4, true),
-            IpAddr::V6(ipv6) => fill_attr_ipv6_next_hop(attr, ipv6),
+            IpAddr::V4(ipv4) => {
+                fill_attr_ipv4_next_hop(attr, ipv4, true)
+            },
+            IpAddr::V6(ipv6) => {
+                fill_attr_ipv6_next_hop(attr, ipv6)
+            },
         };
     }
 
@@ -498,7 +507,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -534,7 +543,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -550,7 +559,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -585,7 +594,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -621,7 +630,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -653,7 +662,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -667,7 +676,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,
@@ -698,7 +707,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(peer: *mut bgp_peer, bmp_rm: *const Bm
 
                     packets.push(ProcessPacket {
                         update_type,
-                        prefix: prefix::from(nlri.network().address()),
+                        prefix: prefix::from(&nlri.network().address()),
                         attr,
                         attr_extra,
                         afi,

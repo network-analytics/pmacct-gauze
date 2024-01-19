@@ -77,7 +77,7 @@ impl From<&Ipv6Addr> for host_addr {
 impl From<&Ipv4Addr> for host_addr {
     fn from(value: &Ipv4Addr) -> Self {
         host_addr {
-            family: unsafe { bgp_afi2family(AFI_IP6 as c_int) } as u8,
+            family: unsafe { bgp_afi2family(AFI_IP as c_int) } as u8,
             address: host_addr__bindgen_ty_1 {
                 ipv4: value.into()
             },

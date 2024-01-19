@@ -24,6 +24,8 @@ impl ExtendBgpAttribute for PathAttribute {
             PathAttributeValue::ClusterList(_) => PathAttributeType::ClusterList,
             PathAttributeValue::MpReach(_) => PathAttributeType::MpReachNlri,
             PathAttributeValue::MpUnreach(_) => PathAttributeType::MpUnreachNlri,
+            PathAttributeValue::OnlyToCustomer(_) => PathAttributeType::OnlyToCustomer,
+            PathAttributeValue::Aigp(_) => PathAttributeType::AccumulatedIgp,
             PathAttributeValue::UnknownAttribute(unknown) => return Err(unknown.clone()),
         };
 
