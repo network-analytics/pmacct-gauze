@@ -1,6 +1,6 @@
-use std::ffi::{CString, c_char, c_short};
 use libc::{LOG_ALERT, LOG_CRIT, LOG_DEBUG, LOG_EMERG, LOG_ERR, LOG_INFO, LOG_NOTICE, LOG_WARNING};
 use pmacct_gauze_bindings::Log;
+use std::ffi::{c_char, c_short, CString};
 
 #[repr(u8)]
 pub enum LogPriority {

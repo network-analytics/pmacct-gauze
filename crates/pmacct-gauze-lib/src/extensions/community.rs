@@ -1,8 +1,8 @@
-use std::io::BufWriter;
-use std::mem::transmute;
 use netgauze_bgp_pkt::community::{ExtendedCommunity, LargeCommunity};
 use netgauze_parse_utils::WritablePdu;
-use pmacct_gauze_bindings::{ECOMMUNITY_SIZE, ecommunity_val, LCOMMUNITY_SIZE, lcommunity_val};
+use pmacct_gauze_bindings::{ecommunity_val, lcommunity_val, ECOMMUNITY_SIZE, LCOMMUNITY_SIZE};
+use std::io::BufWriter;
+use std::mem::transmute;
 
 pub trait ExtendLargeCommunity {
     fn to_lcommunity_val(&self) -> lcommunity_val;

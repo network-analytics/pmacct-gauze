@@ -1,5 +1,5 @@
-use std::fmt::{Debug, Formatter};
 use crate::bgp_attr;
+use std::fmt::{Debug, Formatter};
 
 impl Debug for bgp_attr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

@@ -12,7 +12,7 @@ impl<T, E> FromResidual for CResult<T, E> {
     fn from_residual(residual: <Self as Try>::Residual) -> Self {
         match residual {
             Err(err) => CResult::Err(err),
-            _ => unreachable!("residual should always be the error")
+            _ => unreachable!("residual should always be the error"),
         }
     }
 }
@@ -31,7 +31,7 @@ impl<T, E> Try for CResult<T, E> {
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
             CResult::Ok(_) => ControlFlow::Continue(self),
-            CResult::Err(err) => ControlFlow::Break(Err(err))
+            CResult::Err(err) => ControlFlow::Break(Err(err)),
         }
     }
 }

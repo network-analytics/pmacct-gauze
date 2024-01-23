@@ -1,5 +1,5 @@
-use std::ffi::c_void;
 use netgauze_bmp_pkt::InitiationInformation;
+use std::ffi::c_void;
 
 pub trait TlvExtension {
     fn get_value_ptr(&self) -> *mut c_void;

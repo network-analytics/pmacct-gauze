@@ -1,7 +1,7 @@
+use crate::{prefix, prefix__bindgen_ty_1, u_char};
+use libc::{c_int, AF_INET, AF_INET6};
 use std::fmt::{Debug, Formatter};
 use std::{mem, slice};
-use crate::{prefix, prefix__bindgen_ty_1, u_char};
-use libc::{AF_INET, AF_INET6, c_int};
 
 impl Debug for prefix {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

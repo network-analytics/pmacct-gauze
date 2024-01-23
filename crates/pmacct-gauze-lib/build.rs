@@ -7,7 +7,6 @@ use std::path::PathBuf;
 type Result<T> = core::result::Result<T, Box<dyn Error>>;
 
 fn main() -> Result<()> {
-
     let mut template = Template::new("cbindgen.toml.template");
     let template = template
         .read_as_toml()?

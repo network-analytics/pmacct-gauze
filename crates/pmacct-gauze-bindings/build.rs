@@ -32,7 +32,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("[config]");
     println!("PMACCT_INCLUDE_DIR = {header_location}");
 
-
     let ignored_macros = IgnoreMacros(
         vec![
             "FP_INFINITE".into(),
@@ -42,8 +41,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "FP_ZERO".into(),
             "IPPORT_RESERVED".into(),
         ]
-            .into_iter()
-            .collect(),
+        .into_iter()
+        .collect(),
     );
 
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));
@@ -73,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_ecommunity.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/network.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/log.h"))
-        .blocklist_file("/usr/local/include/pmacct_gauze_lib/pmacct_gauze_lib.h".to_string())
+        .blocklist_file("/usr/local/include/pmacct_gauze_lib/pmacct_gauze_lib.h")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

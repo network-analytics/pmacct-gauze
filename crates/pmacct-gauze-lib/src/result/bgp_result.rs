@@ -9,7 +9,7 @@ pub type BmpBgpResult = CResult<ParsedBgp, ParseError>;
 #[repr(C)]
 #[derive(Debug)]
 pub enum BgpParseError {
-    WrongBgpMessageType
+    WrongBgpMessageType,
 }
 
 #[repr(C)]

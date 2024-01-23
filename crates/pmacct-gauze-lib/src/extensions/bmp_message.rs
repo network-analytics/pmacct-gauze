@@ -1,10 +1,10 @@
-use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
-use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
-use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, PeerHeader};
-use pmacct_gauze_bindings::bmp_peer_hdr;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
 use crate::extensions::rd::{ExtendRd, RouteDistinguisherBytes};
 use crate::result::bmp_result::BmpParseError;
+use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
+use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
+use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, PeerHeader};
+use pmacct_gauze_bindings::bmp_peer_hdr;
 
 pub trait ExtendBmpMessage {
     fn get_peer_header(&self) -> Option<&PeerHeader>;
@@ -27,7 +27,7 @@ impl ExtendBmpMessage for BmpMessage {
                 | BmpMessageValue::Experimental252(_)
                 | BmpMessageValue::Experimental253(_)
                 | BmpMessageValue::Experimental254(_) => None,
-            }
+            },
         }
     }
 
@@ -41,12 +41,26 @@ impl ExtendBmpMessage for BmpMessage {
         Ok(Some(bmp_peer_hdr {
             type_: peer_hdr.peer_type().get_type().into(),
             flags: peer_hdr.peer_type().get_flags_value(),
-            rd: peer_hdr.rd().map(|rd| rd.to_bytes()).unwrap_or(Ok(RouteDistinguisherBytes::default()))?.0,
-            addr: peer_hdr.address().map(|addr| addr.to_bytes()).unwrap_or(IpAddrBytes::default()).0,
+            rd: peer_hdr
+                .rd()
+                .map(|rd| rd.to_bytes())
+                .unwrap_or(Ok(RouteDistinguisherBytes::default()))?
+                .0,
+            addr: peer_hdr
+                .address()
+                .map(|addr| addr.to_bytes())
+                .unwrap_or(IpAddrBytes::default())
+                .0,
             asn: peer_hdr.peer_as(),
             bgp_id: u32::from_ne_bytes(peer_hdr.bgp_id().octets()),
-            tstamp_sec: peer_hdr.timestamp().map(|timestamp| timestamp.timestamp() as u32).unwrap_or(0),
-            tstamp_usec: peer_hdr.timestamp().map(|timestamp| timestamp.timestamp_subsec_micros()).unwrap_or(0),
+            tstamp_sec: peer_hdr
+                .timestamp()
+                .map(|timestamp| timestamp.timestamp() as u32)
+                .unwrap_or(0),
+            tstamp_usec: peer_hdr
+                .timestamp()
+                .map(|timestamp| timestamp.timestamp_subsec_micros())
+                .unwrap_or(0),
         }))
     }
 }
@@ -58,5 +72,7 @@ impl From<RouteDistinguisherWritingError> for BmpParseError {
 }
 
 impl From<IpAddrWritingError> for BmpParseError {
-    fn from(_: IpAddrWritingError) -> Self { Self::IpAddr }
+    fn from(_: IpAddrWritingError) -> Self {
+        Self::IpAddr
+    }
 }

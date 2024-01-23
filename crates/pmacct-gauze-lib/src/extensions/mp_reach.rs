@@ -20,7 +20,7 @@ impl ExtendMpReach for MpReach {
             MpReach::Ipv6MplsVpnUnicast { .. } => AddressType::Ipv6MplsLabeledVpn,
             MpReach::L2Evpn { .. } => AddressType::L2VpnBgpEvpn,
             MpReach::RouteTargetMembership { .. } => AddressType::RouteTargetConstrains,
-            MpReach::Unknown { .. } => return None
+            MpReach::Unknown { .. } => return None,
         })
     }
 
@@ -36,7 +36,7 @@ impl ExtendMpReach for MpReach {
             MpReach::Ipv6MplsVpnUnicast { .. } => AddressFamily::IPv6,
             MpReach::L2Evpn { .. } => AddressFamily::L2vpn,
             MpReach::RouteTargetMembership { .. } => AddressFamily::IPv4,
-            MpReach::Unknown { afi, .. } => *afi
+            MpReach::Unknown { afi, .. } => *afi,
         }
     }
 
@@ -52,7 +52,7 @@ impl ExtendMpReach for MpReach {
             MpReach::Ipv6MplsVpnUnicast { .. } => SubsequentAddressFamily::MplsVpn,
             MpReach::L2Evpn { .. } => SubsequentAddressFamily::BgpEvpn,
             MpReach::RouteTargetMembership { .. } => SubsequentAddressFamily::RouteTargetConstrains,
-            MpReach::Unknown { safi, .. } => *safi
+            MpReach::Unknown { safi, .. } => *safi,
         }
     }
 }
@@ -70,7 +70,7 @@ impl ExtendMpReach for MpUnreach {
             MpUnreach::Ipv6MplsVpnUnicast { .. } => AddressType::Ipv6MplsLabeledVpn,
             MpUnreach::L2Evpn { .. } => AddressType::L2VpnBgpEvpn,
             MpUnreach::RouteTargetMembership { .. } => AddressType::RouteTargetConstrains,
-            MpUnreach::Unknown { .. } => return None
+            MpUnreach::Unknown { .. } => return None,
         })
     }
 
@@ -86,7 +86,7 @@ impl ExtendMpReach for MpUnreach {
             MpUnreach::Ipv6MplsVpnUnicast { .. } => AddressFamily::IPv6,
             MpUnreach::L2Evpn { .. } => AddressFamily::L2vpn,
             MpUnreach::RouteTargetMembership { .. } => AddressFamily::IPv4,
-            MpUnreach::Unknown { afi, .. } => *afi
+            MpUnreach::Unknown { afi, .. } => *afi,
         }
     }
 
@@ -101,8 +101,10 @@ impl ExtendMpReach for MpUnreach {
             MpUnreach::Ipv6NlriMplsLabels { .. } => SubsequentAddressFamily::NlriMplsLabels,
             MpUnreach::Ipv6MplsVpnUnicast { .. } => SubsequentAddressFamily::MplsVpn,
             MpUnreach::L2Evpn { .. } => SubsequentAddressFamily::BgpEvpn,
-            MpUnreach::RouteTargetMembership { .. } => SubsequentAddressFamily::RouteTargetConstrains,
-            MpUnreach::Unknown { safi, .. } => *safi
+            MpUnreach::RouteTargetMembership { .. } => {
+                SubsequentAddressFamily::RouteTargetConstrains
+            }
+            MpUnreach::Unknown { safi, .. } => *safi,
         }
     }
 }
