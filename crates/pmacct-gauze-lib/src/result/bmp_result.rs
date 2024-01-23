@@ -1,4 +1,4 @@
-use crate::c_api::ParsedBmp;
+use crate::capi::bmp::ParsedBmp;
 use crate::result::cresult::CResult;
 use c_str_macro::c_str;
 use libc::c_char;

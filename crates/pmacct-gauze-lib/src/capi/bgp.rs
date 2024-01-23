@@ -1,130 +1,46 @@
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
-use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
-use crate::extensions::initiation_information::TlvExtension;
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::ExtendRd;
 use crate::log::{pmacct_log, LogPriority};
 use crate::macros::free_cslice_t;
-use crate::option::COption;
-use crate::result::bgp_result::{BgpParseError, BmpBgpResult, ParsedBgp};
-use crate::result::bmp_result::{BmpParseError, BmpResult};
+use crate::result::bgp_result::{BgpParseError, BmpBgpResult};
+use crate::result::bmp_result::{BmpParseError};
 use crate::result::cresult::CResult;
 use crate::result::ParseError;
 use crate::slice::CSlice;
-use libc;
 use netgauze_bgp_pkt::nlri::MplsLabel;
 use netgauze_bgp_pkt::path_attribute::{
     Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
 };
 use netgauze_bgp_pkt::update::BgpUpdateMessage;
 use netgauze_bgp_pkt::BgpMessage;
-use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
-use netgauze_parse_utils::ReadablePduWithOneInput;
-use netgauze_parse_utils::{Span, WritablePdu, WritablePduWithOneInput};
-use nom::Offset;
+use netgauze_bmp_pkt::{BmpMessageValue};
+use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 use pmacct_gauze_bindings::{
     afi_t, aspath, aspath_free, aspath_parse, aspath_reconcile_as4, bgp_attr, bgp_attr_extra,
-    bgp_peer, bmp_common_hdr, bmp_log_tlv, bmp_peer_hdr, community, community_add_val,
+    bgp_peer, community, community_add_val,
     community_new, ecommunity, ecommunity_add_val, ecommunity_new, ecommunity_val, host_addr,
     in_addr, lcommunity, lcommunity_add_val, lcommunity_new, lcommunity_val, path_id_t, prefix,
     rd_as, rd_t, safi_t, AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF,
     BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN,
     SAFI_UNICAST,
 };
-use std::collections::HashMap;
-use std::ffi::CString;
 use std::fmt::{Debug, Formatter};
 use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::{ptr, slice};
+use std::{ptr};
+use crate::capi::bmp::BmpMessageValueOpaque;
 
-pub struct BmpMessageValueOpaque(BmpMessageValue);
 pub struct BgpUpdateMessageOpaque(BgpUpdateMessage);
-
-#[no_mangle]
-pub extern "C" fn netgauze_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
-    let s = unsafe { slice::from_raw_parts(buffer as *const u8, len as usize) };
-    let span = Span::new(s);
-    if let Ok((end_span, msg)) = BmpMessage::from_wire(span, &mut HashMap::new()) {
-        println!("span: ptr: {:?} | value {:?}", span.as_ptr(), span);
-        println!("msg: {:?}", msg);
-        return span.offset(&end_span) as u32;
-    }
-
-    0
-}
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct ParsedBmp {
-    read_bytes: u32,
-    common_header: bmp_common_hdr,
-    peer_header: COption<bmp_peer_hdr>,
-    pub message: *mut BmpMessageValueOpaque,
+pub struct ParsedBgp {
+    pub packets: CSlice<ProcessPacket>,
+    pub update_count: usize,
 }
-
-#[no_mangle]
-pub extern "C" fn netgauze_parse_packet(buffer: *const libc::c_char, buf_len: u32) -> BmpResult {
-    let s = unsafe { slice::from_raw_parts(buffer as *const u8, buf_len as usize) };
-    let span = Span::new(s);
-    let result = BmpMessage::from_wire(span, &mut HashMap::new());
-    if let Ok((end_span, msg)) = result {
-        let read_bytes = span.offset(&end_span) as u32;
-
-        return BmpResult::Ok(ParsedBmp {
-            read_bytes,
-            common_header: bmp_common_hdr {
-                version: msg.get_version().into(),
-                len: read_bytes,
-                type_: msg.get_type().into(),
-            },
-            peer_header: msg.get_pmacct_peer_hdr()?.into(),
-            message: Box::into_raw(Box::new(match msg {
-                BmpMessage::V3(value) => BmpMessageValueOpaque(value),
-            })),
-        });
-    }
-
-    let err = result.err().unwrap();
-    // TODO special EoF error
-
-    let netgauze_error = CString::new(err.to_string()).unwrap();
-
-    BmpParseError::Netgauze(netgauze_error.into_raw()).into()
-}
-
-#[no_mangle]
-pub extern "C" fn bmp_init_get_tlvs(
-    bmp_init: *const BmpMessageValueOpaque,
-) -> CResult<CSlice<bmp_log_tlv>, BmpParseError> {
-    let bmp_init = unsafe { &bmp_init.as_ref().unwrap().0 };
-
-    let init = match bmp_init {
-        BmpMessageValue::Initiation(init) => init,
-        _ => return BmpParseError::WrongBmpMessageType.into(),
-    };
-
-    let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(init.information().len());
-
-    for tlv in init.information() {
-        tlvs.push(bmp_log_tlv {
-            pen: 0,
-            type_: tlv.get_type().into(),
-            len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
-            val: tlv.get_value_ptr(),
-        })
-    }
-
-    let c_slice = unsafe { CSlice::from_vec(tlvs) };
-
-    // println!("bmp_init_get_tlvs: {:#?}", &c_slice);
-
-    CResult::Ok(c_slice)
-}
-
-free_cslice_t!(bmp_log_tlv);
 
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_parse_nlri_naive_copy(
@@ -132,7 +48,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri_naive_copy(
 ) -> CSlice<u8> {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
 
-    let bmp_rm = match &bmp_rm.0 {
+    let bmp_rm = match &bmp_rm.value() {
         BmpMessageValue::RouteMonitoring(rm) => rm,
         _ => unreachable!(),
     };
@@ -254,7 +170,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(
 ) -> BmpBgpResult {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
 
-    let bmp_rm = match &bmp_rm.0 {
+    let bmp_rm = match &bmp_rm.value() {
         BmpMessageValue::RouteMonitoring(rm) => rm,
         _ => {
             return CResult::Err(ParseError::ParseErrorBmp(

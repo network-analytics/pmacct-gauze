@@ -6,7 +6,7 @@
 // TODO add testing that validates return values using C functions
 
 #[cfg(feature = "capi")]
-pub mod c_api;
+pub mod capi;
 #[cfg(feature = "capi")]
 pub(crate) mod extensions;
 #[cfg(feature = "capi")]
