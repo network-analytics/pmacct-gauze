@@ -2,7 +2,6 @@ use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
-use crate::extensions::rd::ExtendRd;
 use crate::log::{pmacct_log, LogPriority};
 use crate::macros::free_cslice_t;
 use crate::result::bgp_result::{BgpParseError, BmpBgpResult};
@@ -487,7 +486,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
 
-                    attr_extra.rd = nlri.rd().to_rd_t();
+                    attr_extra.rd = nlri.rd().into();
 
                     packets.push(ProcessPacket {
                         update_type,
@@ -548,7 +547,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    attr_extra.rd = nlri.rd().to_rd_t();
+                    attr_extra.rd = nlri.rd().into();
 
                     packets.push(ProcessPacket {
                         update_type,
@@ -615,7 +614,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
 
-                    attr_extra.rd = nlri.rd().to_rd_t();
+                    attr_extra.rd = nlri.rd().into();
 
                     packets.push(ProcessPacket {
                         update_type,
@@ -660,7 +659,7 @@ pub extern "C" fn netgauze_bgp_parse_nlri(
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    attr_extra.rd = nlri.rd().to_rd_t();
+                    attr_extra.rd = nlri.rd().into();
 
                     packets.push(ProcessPacket {
                         update_type,

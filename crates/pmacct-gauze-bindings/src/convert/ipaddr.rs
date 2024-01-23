@@ -5,7 +5,7 @@ use crate::{
 use ipnet;
 use ipnet::{Ipv4Net, Ipv6Net};
 use std::ffi::c_int;
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 impl From<&Ipv4Addr> for in_addr {
     fn from(value: &Ipv4Addr) -> Self {
@@ -77,6 +77,15 @@ impl From<&Ipv4Addr> for host_addr {
         host_addr {
             family: unsafe { bgp_afi2family(AFI_IP as c_int) } as u8,
             address: host_addr__bindgen_ty_1 { ipv4: value.into() },
+        }
+    }
+}
+
+impl From<&IpAddr> for host_addr {
+    fn from(value: &IpAddr) -> Self {
+        match value {
+            IpAddr::V4(v4) => v4.into(),
+            IpAddr::V6(v6) => v6.into(),
         }
     }
 }
