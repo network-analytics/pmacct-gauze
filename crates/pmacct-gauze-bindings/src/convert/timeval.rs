@@ -1,5 +1,5 @@
-use chrono::{DateTime, TimeZone, Utc};
 use crate::{__suseconds_t, timeval};
+use chrono::{DateTime, TimeZone, Utc};
 
 impl<T: TimeZone> From<&DateTime<T>> for timeval {
     fn from(value: &DateTime<T>) -> Self {
@@ -10,6 +10,7 @@ impl<T: TimeZone> From<&DateTime<T>> for timeval {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for timeval {
     fn default() -> Self {
         Self {

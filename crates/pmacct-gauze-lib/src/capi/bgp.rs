@@ -1,3 +1,4 @@
+use crate::capi::bmp::BmpMessageValueOpaque;
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
 use crate::extensions::mp_reach::ExtendMpReach;
@@ -5,7 +6,7 @@ use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::log::{pmacct_log, LogPriority};
 use crate::macros::free_cslice_t;
 use crate::result::bgp_result::{BgpParseError, BmpBgpResult};
-use crate::result::bmp_result::{BmpParseError};
+use crate::result::bmp_result::BmpParseError;
 use crate::result::cresult::CResult;
 use crate::result::ParseError;
 use crate::slice::CSlice;
@@ -15,22 +16,20 @@ use netgauze_bgp_pkt::path_attribute::{
 };
 use netgauze_bgp_pkt::update::BgpUpdateMessage;
 use netgauze_bgp_pkt::BgpMessage;
-use netgauze_bmp_pkt::{BmpMessageValue};
+use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 use pmacct_gauze_bindings::{
     afi_t, aspath, aspath_free, aspath_parse, aspath_reconcile_as4, bgp_attr, bgp_attr_extra,
-    bgp_peer, community, community_add_val,
-    community_new, ecommunity, ecommunity_add_val, ecommunity_new, ecommunity_val, host_addr,
-    in_addr, lcommunity, lcommunity_add_val, lcommunity_new, lcommunity_val, path_id_t, prefix,
-    rd_as, rd_t, safi_t, AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF,
-    BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN,
-    SAFI_UNICAST,
+    bgp_peer, community, community_add_val, community_new, ecommunity, ecommunity_add_val,
+    ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val,
+    lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t, AFI_IP,
+    BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE,
+    BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, SAFI_UNICAST,
 };
 use std::fmt::{Debug, Formatter};
 use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::{ptr};
-use crate::capi::bmp::BmpMessageValueOpaque;
+use std::ptr;
 
 pub struct BgpUpdateMessageOpaque(BgpUpdateMessage);
 

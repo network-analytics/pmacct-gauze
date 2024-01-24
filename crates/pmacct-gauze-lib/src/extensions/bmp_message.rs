@@ -14,13 +14,13 @@ pub trait ExtendBmpMessage {
 impl ExtendBmpMessage for BmpMessage {
     fn get_peer_header(&self) -> Option<&PeerHeader> {
         match self {
-            BmpMessage::V3(value) => value.get_peer_header()
+            BmpMessage::V3(value) => value.get_peer_header(),
         }
     }
 
     fn get_pmacct_peer_hdr(&self) -> Result<Option<bmp_peer_hdr>, BmpParseError> {
         match self {
-            BmpMessage::V3(value) => value.get_pmacct_peer_hdr()
+            BmpMessage::V3(value) => value.get_pmacct_peer_hdr(),
         }
     }
 }

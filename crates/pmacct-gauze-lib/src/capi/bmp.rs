@@ -5,14 +5,17 @@ use crate::option::COption;
 use crate::result::bmp_result::{BmpParseError, BmpResult};
 use crate::result::cresult::CResult;
 use crate::slice::CSlice;
+use libc::{AF_INET, AF_INET6};
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span, WritablePdu};
 use nom::Offset;
-use pmacct_gauze_bindings::{bmp_chars, bmp_common_hdr, bmp_data, bmp_log_tlv, bmp_peer_hdr, host_addr, rd_t, timeval, u_int8_t};
+use pmacct_gauze_bindings::{
+    bmp_chars, bmp_common_hdr, bmp_data, bmp_log_peer_up, bmp_log_tlv, bmp_peer_hdr, host_addr,
+    rd_t, timeval, u_int8_t,
+};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::{ptr, slice};
-use libc::{AF_INET, AF_INET6};
 
 pub struct BmpMessageValueOpaque(BmpMessageValue);
 
@@ -93,8 +96,16 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
     };
 
     CResult::Ok(bmp_data {
-        family: if peer_hdr.is_v6().unwrap_or(false) { AF_INET } else { AF_INET6 } as u_int8_t,
-        peer_ip: peer_hdr.address().as_ref().map(host_addr::from).unwrap_or_else(host_addr::default),
+        family: if peer_hdr.is_v6().unwrap_or(false) {
+            AF_INET6
+        } else {
+            AF_INET
+        } as u_int8_t,
+        peer_ip: peer_hdr
+            .address()
+            .as_ref()
+            .map(host_addr::from)
+            .unwrap_or_else(host_addr::default),
         bgp_id: host_addr::from(&peer_hdr.bgp_id()),
         peer_asn: peer_hdr.peer_as(),
         chars: bmp_chars {
@@ -107,8 +118,35 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
             rd: peer_hdr.rd().map(rd_t::from).unwrap_or_else(rd_t::default),
             tlvs: ptr::null_mut(), // TODO only used in bmp RM, make a Rust function like for init and fill field in C
         },
-        tstamp: peer_hdr.timestamp().map(timeval::from).unwrap_or_else(timeval::default),
+        tstamp: peer_hdr
+            .timestamp()
+            .map(timeval::from)
+            .unwrap_or_else(timeval::default),
         tstamp_arrival: timeval::now(),
+    })
+}
+
+pub type BmpPeerUpHdrResult = CResult<bmp_log_peer_up, BmpParseError>;
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_peer_up_get_hdr(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) -> BmpPeerUpHdrResult {
+    let peer_up = unsafe { &bmp_message_value_opaque.as_ref().unwrap().0 };
+
+    let peer_up = match peer_up {
+        BmpMessageValue::PeerUpNotification(peer_up) => peer_up,
+        _ => return BmpParseError::WrongBmpMessageType.into(),
+    };
+
+    CResult::Ok(bmp_log_peer_up {
+        local_ip: peer_up
+            .local_address()
+            .as_ref()
+            .map(host_addr::from)
+            .unwrap_or_else(host_addr::default),
+        loc_port: peer_up.local_port().unwrap_or(0),
+        rem_port: peer_up.remote_port().unwrap_or(0),
     })
 }
 
