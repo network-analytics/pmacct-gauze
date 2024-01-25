@@ -119,6 +119,26 @@ impl Default for host_addr {
     }
 }
 
+impl host_addr {
+    pub fn default_ipv4() -> Self {
+        host_addr {
+            family: unsafe { bgp_afi2family(AFI_IP as c_int) } as u8,
+            address: host_addr__bindgen_ty_1 {
+                ipv4: in_addr::default(),
+            },
+        }
+    }
+
+    pub fn default_ipv6() -> Self {
+        host_addr {
+            family: unsafe { bgp_afi2family(AFI_IP6 as c_int) } as u8,
+            address: host_addr__bindgen_ty_1 {
+                ipv6: in6_addr::default(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::in_addr;

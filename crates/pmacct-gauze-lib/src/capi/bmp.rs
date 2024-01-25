@@ -6,7 +6,9 @@ use crate::result::bmp_result::{BmpParseError, BmpResult};
 use crate::result::cresult::CResult;
 use crate::slice::CSlice;
 use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation, TerminationInformation};
+use netgauze_bmp_pkt::{
+    BmpMessage, BmpMessageValue, InitiationInformation, TerminationInformation,
+};
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span, WritablePdu};
 use nom::Offset;
 use pmacct_gauze_bindings::{
@@ -105,7 +107,7 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
             .address()
             .as_ref()
             .map(host_addr::from)
-            .unwrap_or_else(host_addr::default),
+            .unwrap_or_else(host_addr::default_ipv4),
         bgp_id: host_addr::from(&peer_hdr.bgp_id()),
         peer_asn: peer_hdr.peer_as(),
         chars: bmp_chars {
@@ -144,7 +146,7 @@ pub extern "C" fn netgauze_bmp_peer_up_get_hdr(
             .local_address()
             .as_ref()
             .map(host_addr::from)
-            .unwrap_or_else(host_addr::default),
+            .unwrap_or_else(host_addr::default_ipv4),
         loc_port: peer_up.local_port().unwrap_or(0),
         rem_port: peer_up.remote_port().unwrap_or(0),
     })
@@ -172,7 +174,7 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
             }
 
             tlvs
-        },
+        }
         BmpMessageValue::PeerUpNotification(peer_up) => {
             let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(peer_up.information().len());
 
@@ -186,7 +188,7 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
             }
 
             tlvs
-        },
+        }
         BmpMessageValue::Termination(term) => {
             let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(term.information().len());
 
@@ -200,7 +202,7 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
             }
 
             tlvs
-        },
+        }
         _ => return BmpParseError::WrongBmpMessageType.into(),
     };
 
