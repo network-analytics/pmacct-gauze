@@ -1,5 +1,6 @@
-use netgauze_bmp_pkt::InitiationInformation;
+use netgauze_bmp_pkt::{InitiationInformation, TerminationInformation};
 use std::ffi::c_void;
+use netgauze_bmp_pkt::iana::PeerTerminationCode;
 
 pub trait TlvExtension {
     fn get_value_ptr(&self) -> *mut c_void;
@@ -17,6 +18,21 @@ impl TlvExtension for InitiationInformation {
             InitiationInformation::Experimental65532(bytes) => bytes.as_ptr(),
             InitiationInformation::Experimental65533(bytes) => bytes.as_ptr(),
             InitiationInformation::Experimental65534(bytes) => bytes.as_ptr(),
+        };
+
+        ptr as *mut c_void
+    }
+}
+
+impl TlvExtension for TerminationInformation {
+    fn get_value_ptr(&self) -> *mut c_void {
+        let ptr = match self {
+            TerminationInformation::String(str) => str.as_ptr(),
+            TerminationInformation::Reason(value) => value as *const PeerTerminationCode as *const u8,
+            TerminationInformation::Experimental65531(value) => value.as_ptr(),
+            TerminationInformation::Experimental65532(value) => value.as_ptr(),
+            TerminationInformation::Experimental65533(value) => value.as_ptr(),
+            TerminationInformation::Experimental65534(value) => value.as_ptr(),
         };
 
         ptr as *mut c_void

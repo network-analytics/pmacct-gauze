@@ -1,12 +1,12 @@
 use crate::extensions::bmp_message::{ExtendBmpMessage, ExtendBmpPeerHeader};
-use crate::extensions::initiation_information::TlvExtension;
+use crate::extensions::information_tlv::TlvExtension;
 use crate::free_cslice_t;
 use crate::option::COption;
 use crate::result::bmp_result::{BmpParseError, BmpResult};
 use crate::result::cresult::CResult;
 use crate::slice::CSlice;
 use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation};
+use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, InitiationInformation, TerminationInformation};
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span, WritablePdu};
 use nom::Offset;
 use pmacct_gauze_bindings::{
@@ -150,33 +150,61 @@ pub extern "C" fn netgauze_bmp_peer_up_get_hdr(
     })
 }
 
-pub type BmpInitTlvResult = CResult<CSlice<bmp_log_tlv>, BmpParseError>;
+pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, BmpParseError>;
 
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_init_get_tlvs(
-    bmp_init: *const BmpMessageValueOpaque,
-) -> BmpInitTlvResult {
-    let bmp_init = unsafe { &bmp_init.as_ref().unwrap().0 };
+pub extern "C" fn netgauze_bmp_get_tlvs(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) -> BmpTlvListResult {
+    let bmp_msg = unsafe { &bmp_message_value_opaque.as_ref().unwrap().0 };
 
-    let init = match bmp_init {
-        BmpMessageValue::Initiation(init) => init,
+    let tlvs = match bmp_msg {
+        BmpMessageValue::Initiation(init) => {
+            let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(init.information().len());
+
+            for tlv in init.information() {
+                tlvs.push(bmp_log_tlv {
+                    pen: 0, // TODO support PEN when netgauze supports bmp v4
+                    type_: tlv.get_type().into(),
+                    len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
+                    val: tlv.get_value_ptr(),
+                })
+            }
+
+            tlvs
+        },
+        BmpMessageValue::PeerUpNotification(peer_up) => {
+            let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(peer_up.information().len());
+
+            for tlv in peer_up.information() {
+                tlvs.push(bmp_log_tlv {
+                    pen: 0, // TODO support PEN when netgauze supports bmp v4
+                    type_: tlv.get_type().into(),
+                    len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
+                    val: tlv.get_value_ptr(),
+                })
+            }
+
+            tlvs
+        },
+        BmpMessageValue::Termination(term) => {
+            let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(term.information().len());
+
+            for tlv in term.information() {
+                tlvs.push(bmp_log_tlv {
+                    pen: 0, // TODO support PEN when Netgauze supports bmp v4
+                    type_: tlv.get_type().into(),
+                    len: (tlv.len() - TerminationInformation::BASE_LENGTH) as u16,
+                    val: tlv.get_value_ptr(),
+                })
+            }
+
+            tlvs
+        },
         _ => return BmpParseError::WrongBmpMessageType.into(),
     };
 
-    let mut tlvs = Vec::<bmp_log_tlv>::with_capacity(init.information().len());
-
-    for tlv in init.information() {
-        tlvs.push(bmp_log_tlv {
-            pen: 0,
-            type_: tlv.get_type().into(),
-            len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
-            val: tlv.get_value_ptr(),
-        })
-    }
-
     let c_slice = unsafe { CSlice::from_vec(tlvs) };
-
-    // println!("bmp_init_get_tlvs: {:#?}", &c_slice);
 
     CResult::Ok(c_slice)
 }
