@@ -1,3 +1,4 @@
+pub mod add_path;
 pub mod bgp_attribute;
 pub mod bmp_message;
 pub mod community;
