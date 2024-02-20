@@ -2,6 +2,7 @@
 #![feature(vec_into_raw_parts)]
 #![feature(ptr_metadata)]
 #![feature(ip_bits)]
+#![feature(offset_of)]
 
 // TODO add testing that validates return values using C functions
 
@@ -23,7 +24,4 @@ pub mod macros;
 pub mod log;
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn test() {}
-}
+pub mod tests {}

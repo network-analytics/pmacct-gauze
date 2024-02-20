@@ -13,14 +13,14 @@ pub type BmpResult = CResult<ParsedBmp, BmpParseError>;
 pub enum BmpParseError {
     RouteDistinguisher,
     IpAddr,
-    Netgauze(*mut c_char),
+    NetgauzeBmpError(*mut c_char),
     StringConversion,
     WrongBmpMessageType,
 }
 
 impl Display for BmpParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", &self)
+        write!(f, "{:?}", &self)
     }
 }
 
@@ -33,7 +33,7 @@ impl BmpParseError {
                 "BmpParseError::RouteDistinguisher"
             }
             .as_ptr(),
-            BmpParseError::Netgauze(err) => {
+            BmpParseError::NetgauzeBmpError(err) => {
                 return *err as *const c_char;
             }
             BmpParseError::StringConversion => c_str! {
@@ -70,7 +70,7 @@ pub extern "C" fn bmp_result_free(value: BmpResult) {
             drop(Box::from_raw(parse_ok.message));
         },
         CResult::Err(parse_error) => match parse_error {
-            BmpParseError::Netgauze(err) => unsafe {
+            BmpParseError::NetgauzeBmpError(err) => unsafe {
                 drop(CString::from_raw(err));
             },
             BmpParseError::RouteDistinguisher

@@ -1,3 +1,4 @@
+use crate::capi::bgp::BgpMessageOpaque;
 use crate::extensions::bmp_message::{ExtendBmpMessage, ExtendBmpPeerHeader};
 use crate::extensions::information_tlv::TlvExtension;
 use crate::free_cslice_t;
@@ -5,7 +6,9 @@ use crate::option::COption;
 use crate::result::bmp_result::{BmpParseError, BmpResult};
 use crate::result::cresult::CResult;
 use crate::slice::CSlice;
+use crate::slice::RustFree;
 use libc::{AF_INET, AF_INET6};
+use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::{
     BmpMessage, BmpMessageValue, InitiationInformation, TerminationInformation,
 };
@@ -79,7 +82,7 @@ pub extern "C" fn netgauze_bmp_parse_packet(
 
     let netgauze_error = CString::new(err.to_string()).unwrap();
 
-    BmpParseError::Netgauze(netgauze_error.into_raw()).into()
+    BmpParseError::NetgauzeBmpError(netgauze_error.into_raw()).into()
 }
 
 pub type BmpPeerHdrDataResult = CResult<bmp_data, BmpParseError>;
@@ -150,6 +153,40 @@ pub extern "C" fn netgauze_bmp_peer_up_get_hdr(
         loc_port: peer_up.local_port().unwrap_or(0),
         rem_port: peer_up.remote_port().unwrap_or(0),
     })
+}
+
+pub type BmpPeerUpOpenResult = CResult<*const BgpMessageOpaque, BmpParseError>;
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_peer_up_get_open_rx(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) -> BmpPeerUpOpenResult {
+    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap() };
+
+    // Ensure passed value is a supported Bmp Message Type
+    let peer_up = match bmp_value.value() {
+        BmpMessageValue::PeerUpNotification(peer_up) => peer_up,
+        _ => return BmpParseError::WrongBmpMessageType.into(),
+    };
+
+    // TODO change this when NetGauze stores a BgpOpenMessage instead of a BgpMessage
+    CResult::Ok(peer_up.received_message() as *const BgpMessage as *const BgpMessageOpaque)
+}
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_peer_up_get_open_tx(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) -> BmpPeerUpOpenResult {
+    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap() };
+
+    // Ensure passed value is a supported Bmp Message Type
+    let peer_up = match bmp_value.value() {
+        BmpMessageValue::PeerUpNotification(peer_up) => peer_up,
+        _ => return BmpParseError::WrongBmpMessageType.into(),
+    };
+
+    // TODO change this when NetGauze stores a BgpOpenMessage instead of a BgpMessage
+    CResult::Ok(peer_up.sent_message() as *const BgpMessage as *const BgpMessageOpaque)
 }
 
 pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, BmpParseError>;

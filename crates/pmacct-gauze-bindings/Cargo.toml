@@ -16,6 +16,7 @@ phf = "0.11.2"
 ipnet = { version = "2.9.0", features = [] }
 libc = "0.2.149"
 netgauze-bgp-pkt = { path = "../../../netgauze/crates/bgp-pkt" }
+netgauze-iana = { path = "../../../netgauze/crates/iana" }
 chrono = "0.4.32"
 
 [features]
