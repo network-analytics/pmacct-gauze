@@ -35,3 +35,12 @@ impl<T, E> Try for CResult<T, E> {
         }
     }
 }
+
+impl<T, E> From<Result<T, E>> for CResult<T, E> {
+    fn from(value: Result<T, E>) -> Self {
+        match value {
+            Ok(ok) => Self::Ok(ok),
+            Err(err) => Self::Err(err),
+        }
+    }
+}
