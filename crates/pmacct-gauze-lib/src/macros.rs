@@ -1,51 +1,94 @@
 pub use paste;
 
+/// Generate a function called `CSlice_free_T` for C to free a [crate::slice::CSlice<T>] for type `T`.
+///
+/// This variant of the macro automatically implements [crate::slice::RustFree] for the type `T`
+/// The automatic implementation for [crate::slice::RustFree::rust_free] on `T` just drops the value
+/// without specific behaviour.
+///
+/// If you want to customize the [crate::slice::RustFree::rust_free] implementation,
+/// look into [free_cslice_t_with_item_free]
+///
+/// If `T` has generic parameters, the macro can't use T to name the function automatically.
+/// You will need to provide the function suffix as a 2nd parameter of the macro.
+/// ```rust
+/// use pmacct_gauze_lib::free_cslice_t;
+/// use pmacct_gauze_lib::slice::*;
+/// struct SomeGenericStruct<T>(T);
+/// /* free_cslice_t!(SomeGenericStruct<u16>); this can't work because
+///  * CSlice_free_SomeGenericStruct<T> is not a valid function name
+///  */
+///
+/// // This will work because CSlice_free_SomeGenericStruct_u16 is now a valid function name
+/// free_cslice_t!(SomeGenericStruct<u16>, SomeGenericStruct_u16);
+/// ```  
+///
 #[macro_export]
 macro_rules! free_cslice_t {
-    ($typ:ty) => {
+    ($typ:ty, $name:ty) => {
         $crate::macros::paste::paste! {
             #[no_mangle]
-            pub extern "C" fn  [< CSlice_free_ $typ >] (slice: CSlice<$typ>) {
+            pub extern "C" fn  [< CSlice_free_ $name >] (slice: CSlice<$typ>) {
                 CSlice::<$typ>::rust_free(slice);
             }
         }
+
+        #[automatically_derived]
+        impl $crate::slice::RustFree for $typ {
+            fn rust_free(self) {}
+        }
+    };
+    ($typ:ty) => {
+        $crate::macros::free_cslice_t!($typ, $typ);
     };
 }
 pub use free_cslice_t;
 
 // TODO qol: derive macro with automatic rust_free impl
+
+/// Generate a function called `CSlice_free_T` for C to free a [crate::slice::CSlice<T>] for type `T`
+///
+/// This macro work exactly as the macro [free_cslice_t] works
+/// without implementing [crate::slice::RustFree] automatically for `T`.
+///
+/// This allows you to implement [crate::slice::RustFree] for `T` if you need a special behaviour to free the type.
+///
+/// Example:
+/// ```
+/// use pmacct_gauze_lib::free_cslice_t_with_item_free;
+/// use pmacct_gauze_lib::slice::RustFree;
+/// struct Struct;
+///
+/// // This type is needed to be able to implement RustFree as we can't impl a foreign trait on arbitrary types
+/// struct MutPtr<T>(*mut T);
+///
+/// free_cslice_t_with_item_free!(MutPtr<Struct>, MutPtr_Struct);
+///
+/// // This impl could impl for all T
+/// impl RustFree for MutPtr<Struct> {
+///     fn rust_free(self) {
+///         if !self.is_null() {
+///             unsafe {
+///                 // Assuming this pointer was from a Box::into_raw. Do whatever you need to do here.
+///                 let ptr: *mut Struct = self.0;
+///                 drop(Box::from_raw(ptr));
+///             }
+///         }
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! free_cslice_t_with_item_free {
-    ($typ:ty) => {
-        $crate::macros::paste::paste! {
-            #[no_mangle]
-            pub extern "C" fn  [< CSlice_free_ $typ >] (slice: CSlice<$typ>) {
-                unsafe {
-                    let vec = Vec::from_raw_parts(slice.base_ptr, slice.len, slice.cap);
-                    for item in vec {
-                        $typ :: rust_free(item)
-                    }
-                }
-            }
-        }
-    };
-}
-pub use free_cslice_t_with_item_free;
-
-#[macro_export]
-macro_rules! free_cslice_named_with_item_free {
-    ($typ:ty, $name:ident) => {
+    ($typ:ty, $name:ty) => {
         $crate::macros::paste::paste! {
             #[no_mangle]
             pub extern "C" fn  [< CSlice_free_ $name >] (slice: CSlice<$typ>) {
-                unsafe {
-                    let vec = Vec::from_raw_parts(slice.base_ptr, slice.len, slice.cap);
-                    for item in vec {
-                        $typ :: rust_free(item)
-                    }
-                }
+                CSlice :: <$typ> :: rust_free(slice);
             }
         }
     };
+    ($typ:ty) => {
+        $crate::macros::free_cslice_t_with_item_free!($typ, [< $typ >]);
+    };
 }
-pub use free_cslice_named_with_item_free;
+pub use free_cslice_t_with_item_free;
