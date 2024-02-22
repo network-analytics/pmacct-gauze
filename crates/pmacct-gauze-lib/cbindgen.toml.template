@@ -13,3 +13,6 @@ expand = ["pmacct-gauze-lib"]
 
 [export.rename]
 "bridge" = "pmacct-gauze-bindings"
+
+[enum]
+prefix_with_name = true
