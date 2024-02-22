@@ -2,6 +2,7 @@ use crate::capi::bgp::BgpMessageOpaque;
 use crate::extensions::bmp_message::{ExtendBmpMessage, ExtendBmpPeerHeader};
 use crate::extensions::information_tlv::TlvExtension;
 use crate::free_cslice_t;
+use crate::log::{pmacct_log, LogPriority};
 use crate::option::COption;
 use crate::result::bmp_result::{BmpParseError, BmpResult};
 use crate::result::cresult::CResult;
@@ -15,13 +16,16 @@ use netgauze_bmp_pkt::{
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span, WritablePdu};
 use nom::Offset;
 use pmacct_gauze_bindings::{
-    bmp_chars, bmp_common_hdr, bmp_data, bmp_log_peer_up, bmp_log_tlv, bmp_peer_hdr, host_addr,
-    rd_t, timeval, u_int8_t,
+    bmp_chars, bmp_common_hdr, bmp_data, bmp_log_peer_up, bmp_log_stats, bmp_log_tlv, bmp_peer_hdr,
+    host_addr, rd_t, timeval, u_int8_t,
 };
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::{ptr, slice};
 
+use crate::extensions::bmp_statistics::ExtendBmpStatistics;
+
+#[derive(Debug)]
 pub struct BmpMessageValueOpaque(BmpMessageValue);
 
 impl BmpMessageValueOpaque {
@@ -97,6 +101,7 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
     let peer_hdr = match bmp_value {
         BmpMessageValue::RouteMonitoring(rm) => rm.peer_header(),
         BmpMessageValue::PeerUpNotification(peer_up) => peer_up.peer_header(),
+        BmpMessageValue::StatisticsReport(stats) => stats.peer_header(),
         _ => return BmpParseError::WrongBmpMessageType.into(),
     };
 
@@ -155,7 +160,13 @@ pub extern "C" fn netgauze_bmp_peer_up_get_hdr(
     })
 }
 
-pub type BmpPeerUpOpenResult = CResult<*const BgpMessageOpaque, BmpParseError>;
+#[repr(C)]
+pub struct BmpPeerUpOpen {
+    message: *const BgpMessageOpaque,
+    message_size: usize,
+}
+
+pub type BmpPeerUpOpenResult = CResult<BmpPeerUpOpen, BmpParseError>;
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_up_get_open_rx(
@@ -169,8 +180,12 @@ pub extern "C" fn netgauze_bmp_peer_up_get_open_rx(
         _ => return BmpParseError::WrongBmpMessageType.into(),
     };
 
+    let open = peer_up.received_message();
     // TODO change this when NetGauze stores a BgpOpenMessage instead of a BgpMessage
-    CResult::Ok(peer_up.received_message() as *const BgpMessage as *const BgpMessageOpaque)
+    CResult::Ok(BmpPeerUpOpen {
+        message: open as *const BgpMessage as *const BgpMessageOpaque,
+        message_size: open.len(),
+    })
 }
 
 #[no_mangle]
@@ -185,8 +200,12 @@ pub extern "C" fn netgauze_bmp_peer_up_get_open_tx(
         _ => return BmpParseError::WrongBmpMessageType.into(),
     };
 
+    let open = peer_up.sent_message();
     // TODO change this when NetGauze stores a BgpOpenMessage instead of a BgpMessage
-    CResult::Ok(peer_up.sent_message() as *const BgpMessage as *const BgpMessageOpaque)
+    CResult::Ok(BmpPeerUpOpen {
+        message: open as *const BgpMessage as *const BgpMessageOpaque,
+        message_size: open.len(),
+    })
 }
 
 pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, BmpParseError>;
@@ -249,3 +268,92 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
 }
 
 free_cslice_t!(bmp_log_tlv);
+
+#[repr(C)]
+pub enum BmpStatisticsError {
+    WrongBmpMessageType,
+}
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_print_message(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) {
+    let bmp_msg = unsafe { bmp_message_value_opaque.as_ref().unwrap() };
+    println!("{:#?}", bmp_msg);
+}
+
+pub type BmpStatsResult = CResult<CSlice<bmp_log_stats>, BmpStatisticsError>;
+
+free_cslice_t!(bmp_log_stats);
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_stats_get_stats(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) -> BmpStatsResult {
+    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap() };
+
+    // Ensure passed value is a supported Bmp Message Type
+    let stats = match &bmp_value.value() {
+        BmpMessageValue::StatisticsReport(stats) => stats,
+        _ => return CResult::Err(BmpStatisticsError::WrongBmpMessageType),
+    };
+
+    let mut result = Vec::with_capacity(stats.counters().len());
+
+    for stat in stats.counters() {
+        let cnt_type = match stat.get_type() {
+            Ok(type_) => type_ as u16,
+            Err(code) => {
+                pmacct_log(
+                    LogPriority::Warning,
+                    &format!(
+                        "[pmacct-gauze] warn! stat type {code} is not supported by NetGauze\n"
+                    ),
+                );
+                continue;
+            }
+        };
+
+        let (cnt_afi, cnt_safi) = match stat.get_afi_safi() {
+            Ok(None) => (0, 0),
+            Ok(Some(afi_safi)) => afi_safi,
+            Err(address_type) => {
+                pmacct_log(
+                    LogPriority::Warning,
+                    &format!(
+                        "[pmacct-gauze] warn! address type {:?}(afi={}, safi={}) is not supported by NetGauze\n",
+                        address_type,
+                        address_type.address_family(),
+                        address_type.subsequent_address_family()
+                    ),
+                );
+                continue;
+            }
+        };
+
+        // This error will only happen for experimental values since Unknown has already been filtered out in cnt_type
+        let cnt_data = match stat.get_value_as_u64() {
+            Ok(value) => value,
+            Err(()) => {
+                pmacct_log(
+                    LogPriority::Warning,
+                    &format!(
+                        "[pmacct-gauze] warn! stat type {} is not supported by NetGauze\n",
+                        cnt_type
+                    ),
+                );
+                continue;
+            }
+        };
+
+        result.push(bmp_log_stats {
+            cnt_type,
+            cnt_afi,
+            cnt_safi,
+            cnt_data,
+        });
+    }
+
+    let slice = unsafe { CSlice::from_vec(result) };
+    CResult::Ok(slice)
+}
