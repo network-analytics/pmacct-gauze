@@ -4,20 +4,21 @@ use crate::extensions::information_tlv::TlvExtension;
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
 use crate::option::COption;
-use crate::result::bmp_result::{BmpParseError, BmpResult};
+use crate::result::bmp_result::{BmpParseError, BmpPeerDownError, BmpResult, BmpStatisticsError};
 use crate::result::cresult::CResult;
 use crate::slice::CSlice;
 use crate::slice::RustFree;
 use libc::{AF_INET, AF_INET6};
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::{
-    BmpMessage, BmpMessageValue, InitiationInformation, TerminationInformation,
+    BmpMessage, BmpMessageValue, InitiationInformation, PeerDownNotificationReason,
+    TerminationInformation,
 };
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span, WritablePdu};
 use nom::Offset;
 use pmacct_gauze_bindings::{
-    bmp_chars, bmp_common_hdr, bmp_data, bmp_log_peer_up, bmp_log_stats, bmp_log_tlv, bmp_peer_hdr,
-    host_addr, rd_t, timeval, u_int8_t,
+    bmp_chars, bmp_common_hdr, bmp_data, bmp_log_peer_down, bmp_log_peer_up, bmp_log_stats,
+    bmp_log_tlv, bmp_peer_hdr, host_addr, rd_t, timeval, u_char, u_int8_t,
 };
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -102,6 +103,7 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
         BmpMessageValue::RouteMonitoring(rm) => rm.peer_header(),
         BmpMessageValue::PeerUpNotification(peer_up) => peer_up.peer_header(),
         BmpMessageValue::StatisticsReport(stats) => stats.peer_header(),
+        BmpMessageValue::PeerDownNotification(peer_down) => peer_down.peer_header(),
         _ => return BmpParseError::WrongBmpMessageType.into(),
     };
 
@@ -269,11 +271,6 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
 
 free_cslice_t!(bmp_log_tlv);
 
-#[repr(C)]
-pub enum BmpStatisticsError {
-    WrongBmpMessageType,
-}
-
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_print_message(
     bmp_message_value_opaque: *const BmpMessageValueOpaque,
@@ -356,4 +353,28 @@ pub extern "C" fn netgauze_bmp_stats_get_stats(
 
     let slice = unsafe { CSlice::from_vec(result) };
     CResult::Ok(slice)
+}
+
+pub type BmpPeerDownInfoResult = CResult<bmp_log_peer_down, BmpPeerDownError>;
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_peer_down_get_info(
+    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+) -> BmpPeerDownInfoResult {
+    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap() };
+
+    let peer_down = match &bmp_value.value() {
+        BmpMessageValue::PeerDownNotification(peer_down) => peer_down,
+        _ => return CResult::Err(BmpPeerDownError::WrongBmpMessageType),
+    };
+
+    let loc_code = match peer_down.reason() {
+        PeerDownNotificationReason::LocalSystemClosedFsmEventFollows(code) => *code,
+        _ => 0,
+    };
+
+    CResult::Ok(bmp_log_peer_down {
+        reason: peer_down.reason().get_type() as u_char,
+        loc_code,
+    })
 }

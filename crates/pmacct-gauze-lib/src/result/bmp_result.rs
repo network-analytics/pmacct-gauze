@@ -82,8 +82,13 @@ pub extern "C" fn bmp_result_free(value: BmpResult) {
 }
 
 #[repr(C)]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum BmpStatsError {
-    NotABmpStatisticsMessage,
-    StatisticNotSupported(),
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum BmpStatisticsError {
+    WrongBmpMessageType,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum BmpPeerDownError {
+    WrongBmpMessageType,
 }
