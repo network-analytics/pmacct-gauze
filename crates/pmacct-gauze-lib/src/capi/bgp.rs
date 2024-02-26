@@ -7,7 +7,7 @@ use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::log::{pmacct_log, LogPriority};
 use crate::macros::free_cslice_t;
 use crate::result::bgp_result::{BgpParseError, BgpUpdateError};
-use crate::result::bmp_result::BmpParseError;
+use crate::result::bmp_result::{BmpParseError, WrongBmpMessageTypeError};
 use crate::result::cresult::CResult;
 use crate::result::ParseError;
 use crate::slice::CSlice;
@@ -178,13 +178,15 @@ pub extern "C" fn netgauze_bgp_parse_nlri(
     peer: *mut bgp_peer,
     bmp_rm: *const BmpMessageValueOpaque,
 ) -> BmpBgpUpdateResult {
-    let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
+    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().value() };
 
-    let bmp_rm = match &bmp_rm.value() {
+    let bmp_rm = match bmp_value {
         BmpMessageValue::RouteMonitoring(rm) => rm,
         _ => {
             return CResult::Err(ParseError::ParseErrorBmp(
-                BmpParseError::WrongBmpMessageType,
+                BmpParseError::WrongBmpMessageType(
+                    WrongBmpMessageTypeError(bmp_value.get_type().into()).into(),
+                ),
             ));
         }
     };

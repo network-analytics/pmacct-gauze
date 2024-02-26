@@ -1,8 +1,6 @@
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
 use crate::extensions::rd::{ExtendRd, RouteDistinguisherBytes};
 use crate::result::bmp_result::BmpParseError;
-use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
-use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, BmpPeerType, PeerHeader};
 use pmacct_gauze_bindings::bmp_peer_hdr;
 
@@ -140,17 +138,5 @@ impl ExtendBmpPeerHeader for PeerHeader {
 
     fn is_loc(&self) -> bool {
         matches!(self.peer_type(), BmpPeerType::LocalInstancePeer { .. })
-    }
-}
-
-impl From<RouteDistinguisherWritingError> for BmpParseError {
-    fn from(_: RouteDistinguisherWritingError) -> Self {
-        Self::RouteDistinguisher
-    }
-}
-
-impl From<IpAddrWritingError> for BmpParseError {
-    fn from(_: IpAddrWritingError) -> Self {
-        Self::IpAddr
     }
 }
