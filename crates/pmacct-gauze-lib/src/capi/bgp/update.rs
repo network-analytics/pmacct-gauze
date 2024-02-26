@@ -121,7 +121,6 @@ impl Default for BgpParsedAttributes {
 
 pub type BgpUpdateResult = CResult<ParsedBgpUpdate, BgpUpdateError>;
 
-// TODO derive macro for automatic c function print implementation
 // TODO use netgauze Variant(#[from] OtherError) macros
 #[repr(C)]
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -129,6 +128,7 @@ pub enum BgpUpdateError {
     WrongBmpMessageType(WrongBmpMessageTypeError),
     WrongBgpMessageType(WrongBgpMessageTypeError),
 }
+
 impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
     fn from(value: BgpUpdateError) -> Self {
         Self::Err(value)

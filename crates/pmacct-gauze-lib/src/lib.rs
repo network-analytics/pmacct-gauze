@@ -5,6 +5,7 @@
 #![feature(offset_of)]
 
 // TODO add testing that validates return values using C functions
+// TODO derive macro for automatic c function print for structs/enums implementation
 
 #[cfg(feature = "capi")]
 pub mod capi;

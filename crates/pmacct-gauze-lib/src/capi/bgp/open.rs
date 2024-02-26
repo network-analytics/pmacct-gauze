@@ -1,5 +1,6 @@
 use crate::capi::bgp::{BgpMessageOpaque, WrongBgpMessageTypeError};
 use crate::cresult::CResult;
+use crate::log::{pmacct_log, LogPriority};
 use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_parse_utils::WritablePdu;
@@ -73,7 +74,15 @@ pub extern "C" fn netgauze_bgp_process_open(
             | BgpCapability::BgpRole(_)
             | BgpCapability::ExtendedNextHopEncoding(_)
             | BgpCapability::Unrecognized(_)
-            | BgpCapability::Experimental(_) => {} // TODO log: not supported by pmacct
+            | BgpCapability::Experimental(_) => {
+                pmacct_log(
+                    LogPriority::Warning,
+                    &format!(
+                        "[pmacct-gauze] warn! capability {:?} is not supported in pmacct\n",
+                        capability
+                    ),
+                );
+            }
         }
     }
 
