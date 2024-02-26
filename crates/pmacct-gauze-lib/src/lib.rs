@@ -9,11 +9,11 @@
 #[cfg(feature = "capi")]
 pub mod capi;
 #[cfg(feature = "capi")]
-pub(crate) mod extensions;
+pub mod coption;
 #[cfg(feature = "capi")]
-pub mod option;
+pub mod cresult;
 #[cfg(feature = "capi")]
-pub mod result;
+pub mod extensions;
 #[cfg(feature = "capi")]
 pub mod slice;
 
