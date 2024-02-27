@@ -1,8 +1,9 @@
 use std::convert::Infallible;
 use std::ops::{ControlFlow, FromResidual, Try};
 
+/// Re-implementation of [Result] but FFI compatible
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum CResult<S, E> {
     Ok(S),
     Err(E),
@@ -21,7 +22,6 @@ impl<T, E> Try for CResult<T, E> {
     /// [Self::Ok]
     type Output = Self;
 
-    /// Result<Infallible, ParseError>
     type Residual = Result<Infallible, E>;
 
     fn from_output(output: Self::Output) -> Self {

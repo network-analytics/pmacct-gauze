@@ -1,9 +1,9 @@
 use crate::cresult::CResult;
+use crate::cslice::CSlice;
+pub use crate::cslice::RustFree;
 use crate::extensions::bmp_message::ExtendBmpPeerHeader;
 use crate::extensions::information_tlv::TlvExtension;
 use crate::free_cslice_t;
-use crate::slice::CSlice;
-pub use crate::slice::RustFree;
 use libc::{AF_INET, AF_INET6};
 use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, TerminationInformation};

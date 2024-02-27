@@ -7,21 +7,26 @@
 // TODO add testing that validates return values using C functions
 // TODO derive macro for automatic c function print for structs/enums implementation
 
+/// The actual methods exposed to C
 #[cfg(feature = "capi")]
 pub mod capi;
-#[cfg(feature = "capi")]
+
+/// Representation of a [Option] but FFI-compatible
 pub mod coption;
-#[cfg(feature = "capi")]
+
+/// Representation of a [Result] but FFI-compatible
 pub mod cresult;
-#[cfg(feature = "capi")]
+
+/// Representation of a slice in C. Allows converting from/to [Vec]
+pub mod cslice;
+
+/// Extension traits with helper functions for NetGauze types
 pub mod extensions;
-#[cfg(feature = "capi")]
-pub mod slice;
 
 #[macro_use]
 pub mod macros;
 
-#[cfg(feature = "capi")]
+/// Module handling pmacct-compatible logging from pmacct-gauze
 pub mod log;
 
 #[cfg(test)]

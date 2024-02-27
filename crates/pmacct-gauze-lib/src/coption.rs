@@ -1,5 +1,6 @@
+/// Re-implementation of [Option] but FFI compatible
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum COption<T> {
     None,
     Some(T),

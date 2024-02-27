@@ -1,14 +1,14 @@
 use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
 use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
 use crate::cresult::CResult;
+use crate::cslice::CSlice;
+use crate::cslice::RustFree;
 use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
-use crate::slice::CSlice;
-use crate::slice::RustFree;
 use netgauze_bgp_pkt::nlri::MplsLabel;
 use netgauze_bgp_pkt::path_attribute::{
     Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,

@@ -1,10 +1,10 @@
 use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
 use crate::cresult::CResult;
+use crate::cslice::CSlice;
+use crate::cslice::RustFree;
 use crate::extensions::bmp_statistics::ExtendBmpStatistics;
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
-use crate::slice::CSlice;
-use crate::slice::RustFree;
 use netgauze_bmp_pkt::BmpMessageValue;
 use pmacct_gauze_bindings::bmp_log_stats;
 

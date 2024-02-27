@@ -1,19 +1,19 @@
 pub use paste;
 
-/// Generate a function called `CSlice_free_T` for C to free a [crate::slice::CSlice<T>] for type `T`.
+/// Generate a function called `CSlice_free_T` for C to free a [crate::cslice::CSlice<T>] for type `T`.
 ///
-/// This variant of the macro automatically implements [crate::slice::RustFree] for the type `T`
-/// The automatic implementation for [crate::slice::RustFree::rust_free] on `T` just drops the value
+/// This variant of the macro automatically implements [crate::cslice::RustFree] for the type `T`
+/// The automatic implementation for [crate::cslice::RustFree::rust_free] on `T` just drops the value
 /// without specific behaviour.
 ///
-/// If you want to customize the [crate::slice::RustFree::rust_free] implementation,
+/// If you want to customize the [crate::cslice::RustFree::rust_free] implementation,
 /// look into [free_cslice_t_with_item_free]
 ///
 /// If `T` has generic parameters, the macro can't use T to name the function automatically.
 /// You will need to provide the function suffix as a 2nd parameter of the macro.
 /// ```rust
 /// use pmacct_gauze_lib::free_cslice_t;
-/// use pmacct_gauze_lib::slice::*;
+/// use pmacct_gauze_lib::cslice::*;
 /// struct SomeGenericStruct<T>(T);
 /// /* free_cslice_t!(SomeGenericStruct<u16>); this can't work because
 ///  * CSlice_free_SomeGenericStruct<T> is not a valid function name
@@ -34,7 +34,7 @@ macro_rules! free_cslice_t {
         }
 
         #[automatically_derived]
-        impl $crate::slice::RustFree for $typ {
+        impl $crate::cslice::RustFree for $typ {
             fn rust_free(self) {}
         }
     };
@@ -46,17 +46,17 @@ pub use free_cslice_t;
 
 // TODO qol: derive macro with automatic rust_free impl
 
-/// Generate a function called `CSlice_free_T` for C to free a [crate::slice::CSlice<T>] for type `T`
+/// Generate a function called `CSlice_free_T` for C to free a [crate::cslice::CSlice<T>] for type `T`
 ///
 /// This macro work exactly as the macro [free_cslice_t] works
-/// without implementing [crate::slice::RustFree] automatically for `T`.
+/// without implementing [crate::cslice::RustFree] automatically for `T`.
 ///
-/// This allows you to implement [crate::slice::RustFree] for `T` if you need a special behaviour to free the type.
+/// This allows you to implement [crate::cslice::RustFree] for `T` if you need a special behaviour to free the type.
 ///
 /// Example:
 /// ```
 /// use pmacct_gauze_lib::free_cslice_t_with_item_free;
-/// use pmacct_gauze_lib::slice::RustFree;
+/// use pmacct_gauze_lib::cslice::RustFree;
 /// struct Struct;
 ///
 /// // This type is needed to be able to implement RustFree as we can't impl a foreign trait on arbitrary types
