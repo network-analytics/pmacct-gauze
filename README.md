@@ -9,6 +9,7 @@ This is still very experimental. The fork of pmacct with the pmacct-gauze integr
 ### Prerequisites
 - working Rust and C environments
 - [cargo-c](https://crates.io/crates/cargo-c)
+  - install my fork `cargo install --git https://github.com/mxyns/cargo-c cargo-c` until this [PR](https://github.com/mozilla/cbindgen/pull/785) has been merged
 - pmacct headers installed (see [install script](tools/install_pmacct_headers.sh))
   - or use the `PMACCT_INCLUDE_DIR` env variable to set the location of the headers but be careful of cyclic dependencies. 
 - the following file tree structure
