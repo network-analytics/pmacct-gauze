@@ -12,7 +12,6 @@ pub mod open;
 pub mod parse;
 pub mod update;
 
-pub struct BgpUpdateMessageOpaque(BgpUpdateMessage);
 pub struct BgpMessageOpaque(BgpMessage);
 
 #[repr(C)]

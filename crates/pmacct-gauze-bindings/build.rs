@@ -28,6 +28,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or("/usr/local/include")
         .trim_end_matches(std::path::MAIN_SEPARATOR_STR);
 
+    let clang_args = option_env!("PMACCT_CLANG_ARGS").unwrap_or("");
+
     println!("Running build.rs");
     println!("[config]");
     println!("PMACCT_INCLUDE_DIR = {header_location}");
@@ -57,6 +59,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .header("imported.h")
         .clang_arg(format!("-I{header_location}"))
         .clang_arg("-D PMACCT_GAUZE_BUILD")
+        .clang_arg(clang_args)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

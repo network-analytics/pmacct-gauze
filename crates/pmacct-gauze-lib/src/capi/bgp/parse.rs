@@ -79,15 +79,11 @@ pub extern "C" fn netgauze_free_bgp_parsing_context(
 
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_parse_packet(
-    buffer: *const libc::c_char,
+    buffer: *const c_char,
     buffer_length: u32,
     bgp_parsing_context: *mut BgpParsingContextOpaque,
 ) -> BgpParseResult {
-    let bgp_parsing_context = unsafe {
-        (bgp_parsing_context as *mut BgpParsingContext)
-            .as_mut()
-            .unwrap()
-    };
+    let bgp_parsing_context = unsafe { &mut bgp_parsing_context.as_mut().unwrap().0 };
 
     let slice = unsafe { slice::from_raw_parts(buffer as *const u8, buffer_length as usize) };
     let span = Span::new(slice);
