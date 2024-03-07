@@ -1,6 +1,6 @@
 use crate::capi::bmp::parse::BmpParseError;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
-use crate::extensions::rd::{ExtendRd, RouteDistinguisherBytes};
+use crate::extensions::rd::{ExtendRouteDistinguisher, RouteDistinguisherBytes};
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, BmpPeerType, PeerHeader};
 use pmacct_gauze_bindings::bmp_peer_hdr;
 

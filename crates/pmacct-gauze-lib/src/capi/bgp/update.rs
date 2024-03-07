@@ -7,9 +7,10 @@ use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
 use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
+use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
-use netgauze_bgp_pkt::nlri::MplsLabel;
+use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
 use netgauze_bgp_pkt::path_attribute::{
     Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
 };
@@ -391,6 +392,11 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         }
     }
 
+    fn fill_rd(attr_extra: &mut bgp_attr_extra, rd: RouteDistinguisher) {
+        attr_extra.rd = rd.into();
+        attr_extra.rd.set_pmacct_rd_origin(RdOriginType::BGP);
+    }
+
     fn cleanup_mp_reach(attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra) {
         attr.nexthop = in_addr::default();
         attr.mp_nexthop = host_addr::default();
@@ -461,8 +467,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
-
-                    attr_extra.rd = nlri.rd().into();
+                    fill_rd(&mut attr_extra, nlri.rd());
 
                     packets.push(ProcessPacket {
                         update_type,
@@ -523,7 +528,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    attr_extra.rd = nlri.rd().into();
+                    fill_rd(&mut attr_extra, nlri.rd());
 
                     packets.push(ProcessPacket {
                         update_type,
@@ -589,8 +594,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
-
-                    attr_extra.rd = nlri.rd().into();
+                    fill_rd(&mut attr_extra, nlri.rd());
 
                     packets.push(ProcessPacket {
                         update_type,
@@ -635,7 +639,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
                     fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    attr_extra.rd = nlri.rd().into();
+                    fill_rd(&mut attr_extra, nlri.rd());
 
                     packets.push(ProcessPacket {
                         update_type,

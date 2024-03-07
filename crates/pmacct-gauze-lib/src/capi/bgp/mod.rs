@@ -1,6 +1,5 @@
 use crate::cresult::CResult;
 use netgauze_bgp_pkt::iana::BgpMessageType;
-use netgauze_bgp_pkt::update::BgpUpdateMessage;
 use netgauze_bgp_pkt::BgpMessage;
 use pmacct_gauze_bindings::{
     aspath, aspath_free, aspath_reconcile_as4, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW,

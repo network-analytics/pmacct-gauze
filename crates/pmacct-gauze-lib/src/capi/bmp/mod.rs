@@ -3,6 +3,7 @@ use crate::cslice::CSlice;
 pub use crate::cslice::RustFree;
 use crate::extensions::bmp_message::ExtendBmpPeerHeader;
 use crate::extensions::information_tlv::TlvExtension;
+use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
 use libc::{AF_INET, AF_INET6};
 use netgauze_bmp_pkt::iana::BmpMessageType;
@@ -149,7 +150,14 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
             is_filtered: u_int8_t::from(peer_hdr.is_filtered().unwrap_or(false)),
             is_out: u_int8_t::from(peer_hdr.is_out().unwrap_or(false)),
             is_loc: u_int8_t::from(peer_hdr.is_loc()),
-            rd: peer_hdr.rd().map(rd_t::from).unwrap_or_else(rd_t::default),
+            rd: peer_hdr
+                .rd()
+                .map(|rd| {
+                    let mut rd = rd_t::from(rd);
+                    rd.set_pmacct_rd_origin(RdOriginType::BMP);
+                    rd
+                })
+                .unwrap_or_else(rd_t::default),
             tlvs: ptr::null_mut(), // TODO only used in bmp RM, make a Rust function like for init and fill field in C
         },
         tstamp: peer_hdr

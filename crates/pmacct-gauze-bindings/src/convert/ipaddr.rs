@@ -2,7 +2,6 @@ use crate::{
     bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in6_addr, in6_addr__bindgen_ty_1, in_addr,
     prefix, prefix__bindgen_ty_1, AFI_IP, AFI_IP6,
 };
-use ipnet;
 use ipnet::{Ipv4Net, Ipv6Net};
 use std::ffi::c_int;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -17,6 +16,12 @@ impl From<&Ipv4Addr> for in_addr {
 
 impl From<&in_addr> for Ipv4Addr {
     fn from(value: &in_addr) -> Self {
+        (*value).into()
+    }
+}
+
+impl From<in_addr> for Ipv4Addr {
+    fn from(value: in_addr) -> Self {
         Ipv4Addr::from_bits(u32::from_be(value.s_addr))
     }
 }
