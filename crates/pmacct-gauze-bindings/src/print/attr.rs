@@ -10,7 +10,7 @@ impl Debug for bgp_attr {
         debug.field("ecommunity", &self.ecommunity);
         debug.field("lcommunity", &self.lcommunity);
         debug.field("refcnt", &self.refcnt);
-        debug.field("flag", &self.flag);
+        debug.field("rpki_maxlen", &self.rpki_maxlen);
         debug.field("nexthop", &self.nexthop);
         debug.field("mp_nexthop", &self.mp_nexthop);
         debug.field("med", &self.med);

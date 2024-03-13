@@ -136,6 +136,7 @@ impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
     }
 }
 
+// TODO allocate separate community structs to avoid use after free bc pmacct decides to free the given communities with skip_rib
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,
@@ -175,7 +176,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         ecommunity: ptr::null_mut(),
         lcommunity: ptr::null_mut(),
         refcnt: 0, // TODO see how this works in pmacct (prob. intern/unintern)
-        flag: 0,
+        rpki_maxlen: 0,
         nexthop: in_addr::default(),
         mp_nexthop: host_addr::default(),
         med: 0,        // uninit protected with bitmap
