@@ -3,7 +3,6 @@ use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
-use ipnet::Ipv4Net;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
 use netgauze_bgp_pkt::path_attribute::{
@@ -12,7 +11,7 @@ use netgauze_bgp_pkt::path_attribute::{
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 
-use pmacct_gauze_bindings::{AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer, community, community_add_val, community_new, ecommunity, ecommunity_add_val, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t, SAFI_UNICAST};
+use pmacct_gauze_bindings::{AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer, community, community_add_val, community_intern, community_new, ecommunity, ecommunity_add_val, ecommunity_intern, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_intern, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t, SAFI_UNICAST};
 
 use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
 use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
@@ -200,6 +199,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
     let mut as4_path = ptr::null_mut();
 
     // TODO free allocated C structs on error
+    // TODO accept only one path attribute of each kind, error if multiple
     for _attr in update.path_attributes() {
         match _attr.value() {
             PathAttributeValue::AsPath(aspath) => {
@@ -214,6 +214,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 };
 
                 as_path = unsafe {
+                    // no need to intern as aspath_parse interns as well
                     aspath_parse(
                         peer,
                         bytes.as_ptr() as *mut i8,
@@ -236,6 +237,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 };
 
                 as4_path = unsafe {
+                    // no need to intern as aspath_parse interns as well
                     aspath_parse(
                         peer,
                         bytes.as_ptr() as *mut i8,
@@ -255,7 +257,9 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                     }
                 }
 
-                attr.community = com;
+                attr.community = unsafe {
+                    community_intern(peer, com)
+                };
             }
             PathAttributeValue::LargeCommunities(large_communities) => {
                 let lcom = unsafe { lcommunity_new(peer) };
@@ -267,7 +271,9 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                     }
                 }
 
-                attr.lcommunity = lcom;
+                attr.lcommunity = unsafe {
+                    lcommunity_intern(peer, lcom)
+                };
             }
             PathAttributeValue::ExtendedCommunities(extended_communities) => {
                 let ecom = unsafe { ecommunity_new(peer) };
@@ -279,7 +285,9 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                     }
                 }
 
-                attr.ecommunity = ecom;
+                attr.ecommunity = unsafe {
+                    ecommunity_intern(peer, ecom)
+                };
             }
 
             // straightforward primitives
