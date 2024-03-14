@@ -1,4 +1,20 @@
-use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
+use std::fmt::{Debug, Formatter};
+use std::io::BufWriter;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::ptr;
+
+use ipnet::Ipv4Net;
+use netgauze_bgp_pkt::BgpMessage;
+use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
+use netgauze_bgp_pkt::path_attribute::{
+    Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
+};
+use netgauze_bmp_pkt::BmpMessageValue;
+use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
+
+use pmacct_gauze_bindings::{AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer, community, community_add_val, community_new, ecommunity, ecommunity_add_val, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t, SAFI_UNICAST};
+
+use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
 use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
@@ -9,26 +25,7 @@ use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
-use crate::log::{pmacct_log, LogPriority};
-use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
-use netgauze_bgp_pkt::path_attribute::{
-    Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
-};
-use netgauze_bgp_pkt::BgpMessage;
-use netgauze_bmp_pkt::BmpMessageValue;
-use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
-use pmacct_gauze_bindings::{
-    afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community, community_add_val,
-    community_new, ecommunity, ecommunity_add_val, ecommunity_new, ecommunity_val, host_addr,
-    in_addr, lcommunity, lcommunity_add_val, lcommunity_new, lcommunity_val, path_id_t, prefix,
-    rd_as, rd_t, safi_t, AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF,
-    BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN,
-    SAFI_UNICAST,
-};
-use std::fmt::{Debug, Formatter};
-use std::io::BufWriter;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::ptr;
+use crate::log::{LogPriority, pmacct_log};
 
 free_cslice_t!(u8);
 
@@ -150,7 +147,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
                 bmp_value.get_type().into(),
             ))
-            .into()
+                .into();
         }
     };
 
@@ -161,7 +158,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
                 bgp_msg.get_type().into(),
             ))
-            .into()
+                .into();
         }
     };
 
@@ -543,11 +540,14 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             }
 
             // not supported by pmacct
-            MpReach::Ipv4Multicast { .. } => {}
-            MpReach::Ipv6Multicast { .. } => {}
-            MpReach::L2Evpn { .. } => {}
-            MpReach::RouteTargetMembership { .. } => {}
-            MpReach::Unknown { .. } => {}
+            MpReach::Ipv4Multicast { .. }
+            | MpReach::Ipv6Multicast { .. }
+            | MpReach::L2Evpn { .. }
+            | MpReach::RouteTargetMembership { .. }
+            | MpReach::Unknown { .. } => {
+                pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_reach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
+                                                          mp_reach.get_afi(), mp_reach.get_safi(), mp_reach.get_address_type()));
+            }
         }
     }
 
@@ -654,11 +654,14 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             }
 
             // not supported by pmacct
-            MpUnreach::Ipv4Multicast { .. } => {}
-            MpUnreach::Ipv6Multicast { .. } => {}
-            MpUnreach::L2Evpn { .. } => {}
-            MpUnreach::RouteTargetMembership { .. } => {}
-            MpUnreach::Unknown { .. } => {}
+            MpUnreach::Ipv4Multicast { .. }
+            | MpUnreach::Ipv6Multicast { .. }
+            | MpUnreach::L2Evpn { .. }
+            | MpUnreach::RouteTargetMembership { .. }
+            | MpUnreach::Unknown { .. } => {
+                pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_unreach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
+                                                          mp_unreach.get_afi(), mp_unreach.get_safi(), mp_unreach.get_address_type()));
+            }
         }
     }
 
