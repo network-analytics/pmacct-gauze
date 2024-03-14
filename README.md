@@ -29,7 +29,7 @@ Now the library and the headers are installed on your machine. It's time to buil
 
 Use this version of pmacct: https://github.com/mxyns/pmacct/tree/netgauze-exp
 
-Follow pmacct build instructions, configure and build pmacct. 
+Follow pmacct build instructions, configure with `--enable-pmacct-gauze` and build pmacct. 
 pmacct-gauze should be linked automatically using pkg-config.
 
 ### Run pmacct
