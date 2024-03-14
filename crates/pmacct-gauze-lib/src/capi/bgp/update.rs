@@ -3,6 +3,7 @@ use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
+use ipnet::Ipv4Net;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
 use netgauze_bgp_pkt::path_attribute::{
@@ -672,6 +673,28 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             }
         }
     }
+
+    // handle EoR
+    if update.nlri().is_empty() && update.withdraw_routes().is_empty() {
+        let afi_safi = if update.path_attributes().is_empty() {
+            Some((AFI_IP as afi_t, SAFI_UNICAST as safi_t))
+        } else if mp_unreach.is_some() {
+            Some((mp_unreach.unwrap().get_afi() as afi_t, mp_unreach.unwrap().get_safi() as safi_t))
+        } else {
+            None // TODO make error
+        };
+
+        if let Some((afi, safi)) = afi_safi {
+            packets.push(ProcessPacket {
+                update_type: 0,
+                afi,
+                safi,
+                prefix: prefix::from(&Ipv4Net::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                attr,
+                attr_extra,
+            });
+        }
+    };
 
     unsafe {
         BgpUpdateResult::Ok(ParsedBgpUpdate {
