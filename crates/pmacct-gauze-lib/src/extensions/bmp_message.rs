@@ -1,8 +1,10 @@
+use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, BmpPeerType, PeerHeader};
+
+use pmacct_gauze_bindings::bmp_peer_hdr;
+
 use crate::capi::bmp::parse::BmpParseError;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
 use crate::extensions::rd::{ExtendRouteDistinguisher, RouteDistinguisherBytes};
-use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, BmpPeerType, PeerHeader};
-use pmacct_gauze_bindings::bmp_peer_hdr;
 
 pub trait ExtendBmpMessage {
     fn get_peer_header(&self) -> Option<&PeerHeader>;
@@ -137,6 +139,6 @@ impl ExtendBmpPeerHeader for PeerHeader {
     }
 
     fn is_loc(&self) -> bool {
-        matches!(self.peer_type(), BmpPeerType::LocalInstancePeer { .. })
+        matches!(self.peer_type(), BmpPeerType::LocRibInstancePeer { .. })
     }
 }
