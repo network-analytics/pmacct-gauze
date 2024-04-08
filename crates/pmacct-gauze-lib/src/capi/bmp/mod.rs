@@ -1,18 +1,21 @@
-use crate::cresult::CResult;
-use crate::cslice::CSlice;
-pub use crate::cslice::RustFree;
-use crate::extensions::bmp_message::ExtendBmpPeerHeader;
-use crate::extensions::information_tlv::TlvExtension;
-use crate::extensions::rd::{ExtendRdT, RdOriginType};
-use crate::free_cslice_t;
-use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::iana::BmpMessageType;
-use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, TerminationInformation};
-use netgauze_parse_utils::WritablePdu;
-use pmacct_gauze_bindings::{bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::ptr;
+
+use libc::{AF_INET, AF_INET6};
+use netgauze_bmp_pkt::iana::BmpMessageType;
+use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
+use netgauze_parse_utils::WritablePdu;
+
+use pmacct_gauze_bindings::{bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t};
+
+use crate::cresult::CResult;
+use crate::cslice::CSlice;
+pub use crate::cslice::RustFree;
+use crate::extensions::bmp_message::{ExtendBmpMessage, ExtendBmpPeerHeader};
+use crate::extensions::information_tlv::TlvExtension;
+use crate::extensions::rd::{ExtendRdT, RdOriginType};
+use crate::free_cslice_t;
 
 pub mod parse;
 pub mod peer_state;
@@ -25,6 +28,12 @@ pub struct BmpMessageValueOpaque(BmpMessageValue);
 impl BmpMessageValueOpaque {
     pub fn value(&self) -> &BmpMessageValue {
         &self.0
+    }
+
+    pub fn peer_key(&self) -> Option<PeerKey> {
+        self.value()
+            .get_peer_header()
+            .map(|peer_hdr| PeerKey::from_peer_header(peer_hdr))
     }
 }
 

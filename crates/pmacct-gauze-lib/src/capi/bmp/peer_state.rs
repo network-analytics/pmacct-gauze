@@ -1,10 +1,12 @@
-use crate::capi::bgp::BgpMessageOpaque;
-use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
-use crate::cresult::CResult;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::{BmpMessageValue, PeerDownNotificationReason};
 use netgauze_parse_utils::WritablePdu;
+
 use pmacct_gauze_bindings::{bmp_log_peer_down, bmp_log_peer_up, host_addr, u_char};
+
+use crate::capi::bgp::BgpMessageOpaque;
+use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
+use crate::cresult::CResult;
 
 pub type BmpPeerUpHdrResult = CResult<bmp_log_peer_up, WrongBmpMessageTypeError>;
 

@@ -1,20 +1,24 @@
-use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
-use crate::coption::COption;
-use crate::cresult::CResult;
-use crate::extensions::bmp_message::ExtendBmpMessage;
-use c_str_macro::c_str;
-use libc::c_char;
-use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
-use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
-use netgauze_bmp_pkt::BmpMessage;
-use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
-use nom::Offset;
-use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr};
-use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::CString;
 use std::fmt::{Display, Formatter};
 use std::slice;
+
+use c_str_macro::c_str;
+use libc::c_char;
+use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
+use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
+use netgauze_bmp_pkt::BmpMessage;
+use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
+use nom::Offset;
+
+use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr};
+
+use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
+use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
+use crate::capi::bmp::parse::BmpParsingContext;
+use crate::coption::COption;
+use crate::cresult::CResult;
+use crate::extensions::bmp_message::ExtendBmpMessage;
 
 pub type BmpParseResult = CResult<ParsedBmp, BmpParseError>;
 
@@ -39,9 +43,22 @@ pub struct ParsedBmp {
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parse_packet(buffer: *const c_char, buf_len: u32) -> BmpParseResult {
+    let mut ctx = BmpParsingContext::default();
+    netgauze_bmp_parse_packet_with_context(buffer, buf_len, &mut ctx)
+}
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_parse_packet_with_context(
+    buffer: *const c_char,
+    buf_len: u32,
+    bmp_parsing_context: *mut BmpParsingContext,
+) -> BmpParseResult {
     let s = unsafe { slice::from_raw_parts(buffer as *const u8, buf_len as usize) };
     let span = Span::new(s);
-    let result = BmpMessage::from_wire(span, &mut HashMap::new());
+
+    let bmp_parsing_context = unsafe { bmp_parsing_context.as_mut().unwrap() };
+
+    let result = BmpMessage::from_wire(span, bmp_parsing_context.as_mut());
     if let Ok((end_span, msg)) = result {
         let read_bytes = span.offset(&end_span) as u32;
 
@@ -53,11 +70,12 @@ pub extern "C" fn netgauze_bmp_parse_packet(buffer: *const c_char, buf_len: u32)
                 type_: msg.get_type().into(),
             },
             peer_header: msg.get_pmacct_peer_hdr()?.into(),
-            message: Box::into_raw(Box::new(match msg {
+            message: make_rust_raw_box_pointer(match msg {
                 BmpMessage::V3(value) => BmpMessageValueOpaque(value),
-            })),
+            }),
         });
     }
+
 
     let err = result.err().unwrap();
     // TODO special EoF error
@@ -84,22 +102,22 @@ impl BmpParseError {
             BmpParseError::RouteDistinguisher => c_str! {
                 "BmpParseError::RouteDistinguisher"
             }
-            .as_ptr(),
+                .as_ptr(),
             BmpParseError::NetgauzeBmpError(err) => {
                 return *err as *const c_char;
             }
             BmpParseError::StringConversion => c_str! {
                 "BmpParseError::StringConversion"
             }
-            .as_ptr(),
+                .as_ptr(),
             BmpParseError::IpAddr => c_str! {
                 "BmpParseError::IpAddr"
             }
-            .as_ptr(),
+                .as_ptr(),
             BmpParseError::WrongBmpMessageType(_) => c_str! {
                 "BmpParseError::WrongMessageType"
             }
-            .as_ptr(),
+                .as_ptr(),
         }
     }
 }
@@ -130,9 +148,9 @@ pub extern "C" fn bmp_parse_error_str(error: BmpParseError) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn bmp_parse_result_free(value: BmpParseResult) {
     match value {
-        CResult::Ok(parse_ok) => unsafe {
-            drop(Box::from_raw(parse_ok.message));
-        },
+        CResult::Ok(parse_ok) => {
+            drop_rust_raw_box(parse_ok.message);
+        }
         CResult::Err(parse_error) => match parse_error {
             BmpParseError::NetgauzeBmpError(err) => unsafe {
                 drop(CString::from_raw(err));

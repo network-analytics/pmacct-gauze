@@ -1,11 +1,14 @@
-use crate::cresult::CResult;
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
+
 use netgauze_bgp_pkt::iana::BgpMessageType;
 use netgauze_bgp_pkt::BgpMessage;
+
 use pmacct_gauze_bindings::{
     aspath, aspath_free, aspath_reconcile_as4, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW,
 };
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+
+use crate::cresult::CResult;
 
 pub mod open;
 pub mod parse;

@@ -44,8 +44,6 @@ macro_rules! free_cslice_t {
 }
 pub use free_cslice_t;
 
-// TODO qol: derive macro with automatic rust_free impl
-
 /// Generate a function called `CSlice_free_T` for C to free a [crate::cslice::CSlice<T>] for type `T`
 ///
 /// This macro work exactly as the macro [free_cslice_t] works
@@ -88,7 +86,40 @@ macro_rules! free_cslice_t_with_item_free {
         }
     };
     ($typ:ty) => {
-        $crate::macros::free_cslice_t_with_item_free!($typ, [< $typ >]);
+        $crate::macros::free_cslice_t_with_item_free!($typ, $typ);
     };
 }
 pub use free_cslice_t_with_item_free;
+
+#[macro_export]
+macro_rules! make_default {
+    ($typ:ty, $name:ty) => {
+        $crate::macros::paste::paste! {
+            #[no_mangle]
+            pub extern "C" fn  [< netgauze_make_ $name >] () -> *mut $typ {
+                $crate::make_rust_raw_box_pointer(Default::default())
+            }
+        }
+    };
+    ($typ:ty) => {
+        $crate::macros::make_default!($typ, $typ);
+    };
+}
+pub use make_default;
+
+#[macro_export]
+macro_rules! free_rust_raw_box {
+    ($typ:ty, $name:ty) => {
+        $crate::macros::paste::paste! {
+            #[allow(non_snake_case)]
+            #[no_mangle]
+            pub extern "C" fn  [< netgauze_free_ $name >] ( [< $name _pointer >] : *mut $typ ) {
+                $crate::drop_rust_raw_box( [< $name _pointer >] )
+            }
+        }
+    };
+    ($typ:ty) => {
+        $crate::macros::free_rust_raw_box!($typ, $typ);
+    };
+}
+pub use free_rust_raw_box;

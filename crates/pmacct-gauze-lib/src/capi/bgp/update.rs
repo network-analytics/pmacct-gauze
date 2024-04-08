@@ -4,17 +4,24 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
 use ipnet::Ipv4Net;
-use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
 use netgauze_bgp_pkt::path_attribute::{
     Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
 };
+use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 
-use pmacct_gauze_bindings::{AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer, community, community_add_val, community_intern, community_new, ecommunity, ecommunity_add_val, ecommunity_intern, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_intern, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t, SAFI_UNICAST};
+use pmacct_gauze_bindings::{
+    afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community, community_add_val,
+    community_intern, community_new, ecommunity, ecommunity_add_val, ecommunity_intern,
+    ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val,
+    lcommunity_intern, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t,
+    AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC,
+    BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, SAFI_UNICAST,
+};
 
-use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
+use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
 use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
@@ -25,7 +32,7 @@ use crate::extensions::mp_reach::ExtendMpReach;
 use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
-use crate::log::{LogPriority, pmacct_log};
+use crate::log::{pmacct_log, LogPriority};
 
 free_cslice_t!(u8);
 
@@ -147,7 +154,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
                 bmp_value.get_type().into(),
             ))
-                .into();
+            .into();
         }
     };
 
@@ -158,7 +165,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
                 bgp_msg.get_type().into(),
             ))
-                .into();
+            .into();
         }
     };
 
@@ -258,9 +265,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                     }
                 }
 
-                attr.community = unsafe {
-                    community_intern(peer, com)
-                };
+                attr.community = unsafe { community_intern(peer, com) };
             }
             PathAttributeValue::LargeCommunities(large_communities) => {
                 let lcom = unsafe { lcommunity_new(peer) };
@@ -272,9 +277,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                     }
                 }
 
-                attr.lcommunity = unsafe {
-                    lcommunity_intern(peer, lcom)
-                };
+                attr.lcommunity = unsafe { lcommunity_intern(peer, lcom) };
             }
             PathAttributeValue::ExtendedCommunities(extended_communities) => {
                 let ecom = unsafe { ecommunity_new(peer) };
@@ -286,9 +289,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                     }
                 }
 
-                attr.ecommunity = unsafe {
-                    ecommunity_intern(peer, ecom)
-                };
+                attr.ecommunity = unsafe { ecommunity_intern(peer, ecom) };
             }
 
             // straightforward primitives
@@ -428,9 +429,10 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             // and SAFI UNICAST MPLS-LABEL MPLS-VPN
             MpReach::Ipv4Unicast {
                 next_hop,
+                next_hop_local: _,
                 nlri: nlris,
             } => {
-                fill_attr_ipv4_next_hop(&mut attr, next_hop, true);
+                fill_attr_mp_next_hop(&mut attr, next_hop);
 
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
@@ -447,6 +449,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             }
             MpReach::Ipv4NlriMplsLabels {
                 next_hop,
+                next_hop_local: _,
                 nlri: nlris,
             } => {
                 fill_attr_mp_next_hop(&mut attr, next_hop);
@@ -679,7 +682,10 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         let afi_safi = if update.path_attributes().is_empty() {
             Some((AFI_IP as afi_t, SAFI_UNICAST as safi_t))
         } else if mp_unreach.is_some() {
-            Some((mp_unreach.unwrap().get_afi() as afi_t, mp_unreach.unwrap().get_safi() as safi_t))
+            Some((
+                mp_unreach.unwrap().get_afi() as afi_t,
+                mp_unreach.unwrap().get_safi() as safi_t,
+            ))
         } else {
             None // TODO make error
         };
