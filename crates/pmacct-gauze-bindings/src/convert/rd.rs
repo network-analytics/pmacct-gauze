@@ -1,9 +1,11 @@
+use std::intrinsics::transmute;
+use std::net::Ipv4Addr;
+
+use netgauze_bgp_pkt::nlri::RouteDistinguisher;
+
 use crate::{
     bgp_rd_type_get, in_addr, rd_as, rd_as4, rd_ip, rd_t, RD_TYPE_AS, RD_TYPE_AS4, RD_TYPE_IP,
 };
-use netgauze_bgp_pkt::nlri::RouteDistinguisher;
-use std::intrinsics::transmute;
-use std::net::Ipv4Addr;
 
 impl From<RouteDistinguisher> for rd_t {
     fn from(value: RouteDistinguisher) -> Self {
@@ -17,9 +19,7 @@ impl From<RouteDistinguisher> for rd_t {
             RouteDistinguisher::Ipv4Administrator { ip, number } => unsafe {
                 transmute(rd_ip {
                     type_,
-                    ip: in_addr {
-                        s_addr: ip.to_bits(),
-                    },
+                    ip: in_addr::from(&ip),
                     val: number,
                 })
             },

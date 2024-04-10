@@ -1,6 +1,5 @@
 #![feature(try_trait_v2)]
 #![feature(vec_into_raw_parts)]
-#![feature(ptr_metadata)]
 #![feature(ip_bits)]
 
 // TODO make type Opaque<T> for opaque value with default helper methods
