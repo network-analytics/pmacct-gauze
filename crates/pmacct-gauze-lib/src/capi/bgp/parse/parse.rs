@@ -5,13 +5,13 @@ use std::slice;
 
 use c_str_macro::c_str;
 use libc::c_char;
+use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
 use nom::Offset;
 
-use crate::capi::bgp::parse::BgpParsingContextOpaque;
-use crate::capi::bgp::BgpMessageOpaque;
 use crate::cresult::CResult;
+use crate::opaque::Opaque;
 use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 
 #[repr(C)]
@@ -26,14 +26,14 @@ pub type BgpParseResult = CResult<ParsedBgp, BgpParseError>;
 #[repr(C)]
 pub struct ParsedBgp {
     read_bytes: u32,
-    pub message: *mut BgpMessageOpaque,
+    pub message: *mut Opaque<BgpMessage>,
 }
 
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_parse_packet(
     buffer: *const c_char,
     buffer_length: u32,
-    bgp_parsing_context: *mut BgpParsingContextOpaque,
+    bgp_parsing_context: *mut Opaque<BgpParsingContext>,
 ) -> BgpParseResult {
     let bgp_parsing_context = unsafe { bgp_parsing_context.as_mut().unwrap().as_mut() };
 
@@ -45,7 +45,7 @@ pub extern "C" fn netgauze_bgp_parse_packet(
 
         return CResult::Ok(ParsedBgp {
             read_bytes,
-            message: make_rust_raw_box_pointer(BgpMessageOpaque(msg)),
+            message: make_rust_raw_box_pointer(Opaque::from(msg)),
         });
     }
 

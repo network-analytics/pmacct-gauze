@@ -1,21 +1,25 @@
-use crate::capi::bgp::{BgpMessageOpaque, WrongBgpMessageTypeError};
-use crate::cresult::CResult;
-use crate::log::{pmacct_log, LogPriority};
+use std::cmp::max;
+use std::os::raw::c_char;
+
 use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_parse_utils::WritablePdu;
+
 use pmacct_gauze_bindings::{bgp_peer, host_addr};
-use std::cmp::max;
-use std::os::raw::c_char;
+
+use crate::capi::bgp::WrongBgpMessageTypeError;
+use crate::cresult::CResult;
+use crate::log::{pmacct_log, LogPriority};
+use crate::opaque::Opaque;
 
 pub type BgpOpenProcessResult = CResult<usize, WrongBgpMessageTypeError>;
 
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_process_open(
-    bgp_msg: *const BgpMessageOpaque,
+    bgp_msg: *const Opaque<BgpMessage>,
     bgp_peer: *mut bgp_peer,
 ) -> BgpOpenProcessResult {
-    let bgp_msg = unsafe { &bgp_msg.as_ref().unwrap().0 };
+    let bgp_msg = unsafe { bgp_msg.as_ref().unwrap().as_ref() };
     let peer = unsafe { bgp_peer.as_mut().unwrap() };
 
     let open = match bgp_msg {

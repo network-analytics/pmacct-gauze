@@ -1,9 +1,11 @@
-use crate::capi::bmp::BmpMessageValueOpaque;
-use netgauze_bmp_pkt::BmpMessage;
-use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
-use nom::Offset;
 use std::collections::HashMap;
 use std::slice;
+
+use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue};
+use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
+use nom::Offset;
+
+use crate::opaque::Opaque;
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_print_packet(buffer: *const libc::c_char, len: u32) -> u32 {
@@ -20,7 +22,7 @@ pub extern "C" fn netgauze_bmp_print_packet(buffer: *const libc::c_char, len: u3
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_print_message(
-    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+    bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) {
     let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap() };
     println!("{:#?}", bmp_value);

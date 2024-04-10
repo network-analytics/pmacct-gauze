@@ -2,9 +2,8 @@
 #![feature(vec_into_raw_parts)]
 #![feature(ip_bits)]
 
-// TODO make type Opaque<T> for opaque value with default helper methods
-// TODO add annotations to specify which *mut pointers are consumed or not
-// TODO add testing that validates return values using C functions
+// TODO add documentation to specify which *mut pointers are consumed or not
+// TODO add testing that validates return values using C functions for conversions
 // TODO derive macro for automatic c function print for structs/enums implementation
 // TODO consider removing some CResult when the msg type can be assumed as function contract for example
 
@@ -29,6 +28,7 @@ pub mod macros;
 
 /// Module handling pmacct-compatible logging from pmacct-gauze
 pub mod log;
+pub mod opaque;
 
 #[inline]
 pub fn drop_rust_raw_box<T>(pointer: *mut T) {

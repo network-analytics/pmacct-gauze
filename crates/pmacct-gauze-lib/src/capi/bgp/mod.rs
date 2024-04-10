@@ -2,7 +2,6 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
 use netgauze_bgp_pkt::iana::BgpMessageType;
-use netgauze_bgp_pkt::BgpMessage;
 
 use pmacct_gauze_bindings::{
     aspath, aspath_free, aspath_reconcile_as4, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW,
@@ -13,8 +12,6 @@ use crate::cresult::CResult;
 pub mod open;
 pub mod parse;
 pub mod update;
-
-pub struct BgpMessageOpaque(BgpMessage);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

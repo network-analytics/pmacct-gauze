@@ -22,7 +22,7 @@ use pmacct_gauze_bindings::{
 };
 
 use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
-use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
+use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
 use crate::cslice::RustFree;
@@ -33,16 +33,17 @@ use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
+use crate::opaque::Opaque;
 
 free_cslice_t!(u8);
 
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
-    bmp_rm: *const BmpMessageValueOpaque,
+    bmp_rm: *const Opaque<BmpMessageValue>,
 ) -> CSlice<u8> {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
 
-    let bmp_rm = match &bmp_rm.value() {
+    let bmp_rm = match bmp_rm.as_ref() {
         BmpMessageValue::RouteMonitoring(rm) => rm,
         _ => unreachable!(),
     };
@@ -144,9 +145,9 @@ impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,
-    bmp_rm: *const BmpMessageValueOpaque,
+    bmp_rm: *const Opaque<BmpMessageValue>,
 ) -> BgpUpdateResult {
-    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().value() };
+    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
 
     let bmp_rm = match bmp_value {
         BmpMessageValue::RouteMonitoring(rm) => rm,

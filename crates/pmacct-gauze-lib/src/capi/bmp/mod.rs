@@ -16,22 +16,16 @@ use crate::extensions::bmp_message::{ExtendBmpMessage, ExtendBmpPeerHeader};
 use crate::extensions::information_tlv::TlvExtension;
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
+use crate::opaque::Opaque;
 
 pub mod parse;
 pub mod peer_state;
 pub mod print;
 pub mod stats;
 
-#[derive(Debug)]
-pub struct BmpMessageValueOpaque(BmpMessageValue);
-
-impl BmpMessageValueOpaque {
-    pub fn value(&self) -> &BmpMessageValue {
-        &self.0
-    }
-
+impl Opaque<BmpMessageValue> {
     pub fn peer_key(&self) -> Option<PeerKey> {
-        self.value()
+        self.as_ref()
             .get_peer_header()
             .map(|peer_hdr| PeerKey::from_peer_header(peer_hdr))
     }
@@ -65,9 +59,9 @@ pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, WrongBmpMessageTypeErro
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_get_tlvs(
-    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+    bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) -> BmpTlvListResult {
-    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap().value() };
+    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap().as_ref() };
 
     let tlvs = match bmp_value {
         BmpMessageValue::Initiation(init) => {
@@ -126,9 +120,9 @@ pub type BmpPeerHdrDataResult = CResult<bmp_data, WrongBmpMessageTypeError>;
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
-    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+    bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) -> BmpPeerHdrDataResult {
-    let bmp_msg = unsafe { bmp_message_value_opaque.as_ref().unwrap().value() };
+    let bmp_msg = unsafe { bmp_message_value_opaque.as_ref().unwrap().as_ref() };
 
     // Ensure passed value is a supported Bmp Message Type
     let peer_hdr = match bmp_msg {

@@ -1,12 +1,15 @@
-use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
+use netgauze_bmp_pkt::BmpMessageValue;
+
+use pmacct_gauze_bindings::bmp_log_stats;
+
+use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
 use crate::cslice::RustFree;
 use crate::extensions::bmp_statistics::ExtendBmpStatistics;
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
-use netgauze_bmp_pkt::BmpMessageValue;
-use pmacct_gauze_bindings::bmp_log_stats;
+use crate::opaque::Opaque;
 
 pub type BmpStatsResult = CResult<CSlice<bmp_log_stats>, WrongBmpMessageTypeError>;
 
@@ -14,9 +17,9 @@ free_cslice_t!(bmp_log_stats);
 
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_stats_get_stats(
-    bmp_message_value_opaque: *const BmpMessageValueOpaque,
+    bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) -> BmpStatsResult {
-    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap().value() };
+    let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap().as_ref() };
 
     // Ensure passed value is a supported Bmp Message Type
     let stats = match bmp_value {

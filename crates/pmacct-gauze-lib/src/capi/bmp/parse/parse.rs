@@ -5,20 +5,21 @@ use std::slice;
 
 use c_str_macro::c_str;
 use libc::c_char;
-use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
-use netgauze_bmp_pkt::BmpMessage;
+use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
+use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue};
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
 use nom::Offset;
 
 use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr};
 
-use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
-use crate::capi::bmp::{BmpMessageValueOpaque, WrongBmpMessageTypeError};
 use crate::capi::bmp::parse::BmpParsingContext;
+use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::coption::COption;
 use crate::cresult::CResult;
 use crate::extensions::bmp_message::ExtendBmpMessage;
+use crate::opaque::Opaque;
+use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 
 pub type BmpParseResult = CResult<ParsedBmp, BmpParseError>;
 
@@ -38,7 +39,7 @@ pub struct ParsedBmp {
     read_bytes: u32,
     common_header: bmp_common_hdr,
     peer_header: COption<bmp_peer_hdr>,
-    pub message: *mut BmpMessageValueOpaque,
+    pub message: *mut Opaque<BmpMessageValue>,
 }
 
 #[no_mangle]
@@ -71,11 +72,10 @@ pub extern "C" fn netgauze_bmp_parse_packet_with_context(
             },
             peer_header: msg.get_pmacct_peer_hdr()?.into(),
             message: make_rust_raw_box_pointer(match msg {
-                BmpMessage::V3(value) => BmpMessageValueOpaque(value),
+                BmpMessage::V3(value) => Opaque::from(value),
             }),
         });
     }
-
 
     let err = result.err().unwrap();
     // TODO special EoF error
@@ -102,22 +102,22 @@ impl BmpParseError {
             BmpParseError::RouteDistinguisher => c_str! {
                 "BmpParseError::RouteDistinguisher"
             }
-                .as_ptr(),
+            .as_ptr(),
             BmpParseError::NetgauzeBmpError(err) => {
                 return *err as *const c_char;
             }
             BmpParseError::StringConversion => c_str! {
                 "BmpParseError::StringConversion"
             }
-                .as_ptr(),
+            .as_ptr(),
             BmpParseError::IpAddr => c_str! {
                 "BmpParseError::IpAddr"
             }
-                .as_ptr(),
+            .as_ptr(),
             BmpParseError::WrongBmpMessageType(_) => c_str! {
                 "BmpParseError::WrongMessageType"
             }
-                .as_ptr(),
+            .as_ptr(),
         }
     }
 }
