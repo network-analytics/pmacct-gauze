@@ -25,7 +25,7 @@ impl ParseCallbacks for IgnoreMacros {
 fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-env-changed=PMACCT_INCLUDE_DIR");
     let header_location = option_env!("PMACCT_INCLUDE_DIR")
-        .unwrap_or("/usr/local/include")
+        .unwrap_or("/home/taayoma5/CLionProjects/")
         .trim_end_matches(std::path::MAIN_SEPARATOR_STR);
 
     let clang_args = option_env!("PMACCT_CLANG_ARGS").unwrap_or("");

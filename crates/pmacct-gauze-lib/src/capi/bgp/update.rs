@@ -4,35 +4,32 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
 use ipnet::Ipv4Net;
+use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
 use netgauze_bgp_pkt::path_attribute::{
     Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
 };
-use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 
 use pmacct_gauze_bindings::{
-    afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community, community_add_val,
-    community_intern, community_new, ecommunity, ecommunity_add_val, ecommunity_intern,
-    ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val,
-    lcommunity_intern, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t,
-    AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC,
-    BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, SAFI_UNICAST,
+    AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF,
+    BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer,
+    community, community_add_val, community_intern, community_new, ecommunity, ecommunity_add_val,
+    ecommunity_intern, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_intern,
+    lcommunity_new, lcommunity_val, path_id_t, prefix,
+    rd_as, rd_t, safi_t, SAFI_UNICAST,
 };
 
-use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
+use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
 use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
 use crate::cslice::RustFree;
-use crate::extensions::bgp_attribute::ExtendBgpAttribute;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
-use crate::extensions::mp_reach::ExtendMpReach;
-use crate::extensions::next_hop::ExtendLabeledNextHop;
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
-use crate::log::{pmacct_log, LogPriority};
+use crate::log::{LogPriority, pmacct_log};
 use crate::opaque::Opaque;
 
 free_cslice_t!(u8);
@@ -155,7 +152,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
                 bmp_value.get_type().into(),
             ))
-            .into();
+                .into();
         }
     };
 
@@ -166,7 +163,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
                 bgp_msg.get_type().into(),
             ))
-            .into();
+                .into();
         }
     };
 
@@ -329,14 +326,15 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             | PathAttributeValue::Aggregator(_)
             | PathAttributeValue::Originator(_)
             | PathAttributeValue::ClusterList(_)
+            | PathAttributeValue::BgpLs(_)
             | PathAttributeValue::UnknownAttribute(_) => pmacct_log(
                 LogPriority::Warning,
                 &format!(
                     "[pmacct-gauze] warn! attribute type {} is not supported by pmacct\n",
                     _attr
-                        .get_type()
+                        .path_attribute_type()
                         .map(|__attr| __attr as u8)
-                        .unwrap_or_else(|unknown| unknown.code())
+                        .unwrap_or_else(|unknown| unknown)
                 ),
             ),
         };
@@ -421,8 +419,8 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
 
     if let Some(mp_reach) = mp_reach {
         // TODO explicit netgauze->pmacct conversion to ensure values will stay the same
-        let afi = mp_reach.get_afi() as afi_t;
-        let safi = mp_reach.get_safi() as safi_t;
+        let afi = mp_reach.afi() as afi_t;
+        let safi = mp_reach.safi() as safi_t;
         let update_type = BGP_NLRI_UPDATE;
 
         match mp_reach {
@@ -473,7 +471,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 next_hop,
                 nlri: nlris,
             } => {
-                fill_attr_mp_next_hop(&mut attr, &next_hop.get_addr());
+                fill_attr_mp_next_hop(&mut attr, &next_hop.next_hop());
 
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
@@ -512,6 +510,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             }
             MpReach::Ipv6NlriMplsLabels {
                 next_hop,
+                next_hop_local: _next_hop_local,
                 nlri: nlris,
             } => {
                 fill_attr_mp_next_hop(&mut attr, next_hop);
@@ -534,7 +533,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 next_hop,
                 nlri: nlris,
             } => {
-                fill_attr_mp_next_hop(&mut attr, &next_hop.get_addr());
+                fill_attr_mp_next_hop(&mut attr, &next_hop.next_hop());
 
                 for nlri in nlris {
                     fill_path_id(&mut attr_extra, nlri.path_id());
@@ -557,9 +556,11 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             | MpReach::Ipv6Multicast { .. }
             | MpReach::L2Evpn { .. }
             | MpReach::RouteTargetMembership { .. }
+            | MpReach::BgpLs { .. }
+            | MpReach::BgpLsVpn { .. }
             | MpReach::Unknown { .. } => {
                 pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_reach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
-                                                          mp_reach.get_afi(), mp_reach.get_safi(), mp_reach.get_address_type()));
+                                                          mp_reach.afi(), mp_reach.safi(), mp_reach.address_type()));
             }
         }
     }
@@ -568,8 +569,8 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
 
     if let Some(mp_unreach) = mp_unreach {
         // TODO explicit netgauze->pmacct conversion to ensure values will stay the same
-        let afi = mp_unreach.get_afi() as afi_t;
-        let safi = mp_unreach.get_safi() as safi_t;
+        let afi = mp_unreach.afi() as afi_t;
+        let safi = mp_unreach.safi() as safi_t;
         let update_type = BGP_NLRI_WITHDRAW;
 
         match mp_unreach {
@@ -671,9 +672,11 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             | MpUnreach::Ipv6Multicast { .. }
             | MpUnreach::L2Evpn { .. }
             | MpUnreach::RouteTargetMembership { .. }
+            | MpUnreach::BgpLs { .. }
+            | MpUnreach::BgpLsVpn { .. }
             | MpUnreach::Unknown { .. } => {
                 pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_unreach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
-                                                          mp_unreach.get_afi(), mp_unreach.get_safi(), mp_unreach.get_address_type()));
+                                                          mp_unreach.afi(), mp_unreach.safi(), mp_unreach.address_type()));
             }
         }
     }
@@ -684,8 +687,8 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             Some((AFI_IP as afi_t, SAFI_UNICAST as safi_t))
         } else if mp_unreach.is_some() {
             Some((
-                mp_unreach.unwrap().get_afi() as afi_t,
-                mp_unreach.unwrap().get_safi() as safi_t,
+                mp_unreach.unwrap().afi() as afi_t,
+                mp_unreach.unwrap().safi() as safi_t,
             ))
         } else {
             None // TODO make error

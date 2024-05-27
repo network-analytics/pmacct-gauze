@@ -1,11 +1,10 @@
 use netgauze_bgp_pkt::nlri::RouteDistinguisher;
 use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
-use netgauze_parse_utils::WritablePdu;
+
 use pmacct_gauze_bindings::{
-    bgp_rd_origin_set, rd_t, RD_ORIGIN_BGP, RD_ORIGIN_BMP, RD_ORIGIN_FLOW, RD_ORIGIN_FUNC_TYPE_MAX,
-    RD_ORIGIN_MAP, RD_ORIGIN_MASK, RD_ORIGIN_UNKNOWN,
+    bgp_rd_origin_set, RD_ORIGIN_BGP, RD_ORIGIN_BMP, RD_ORIGIN_FLOW, RD_ORIGIN_FUNC_TYPE_MAX, RD_ORIGIN_MAP,
+    RD_ORIGIN_MASK, RD_ORIGIN_UNKNOWN, rd_t,
 };
-use std::io::BufWriter;
 
 #[repr(transparent)]
 #[derive(Default)]
@@ -29,13 +28,9 @@ pub enum RdOriginType {
 
 impl ExtendRouteDistinguisher for RouteDistinguisher {
     fn to_bytes(&self) -> Result<RouteDistinguisherBytes, RouteDistinguisherWritingError> {
-        let mut result = [0u8; 8];
-        {
-            let mut writer = BufWriter::new(&mut result[..]);
-            self.write(&mut writer)?;
-        }
+        let num = u64::from(*self);
 
-        Ok(RouteDistinguisherBytes(result))
+        Ok(RouteDistinguisherBytes(num.to_be_bytes()))
     }
 
     fn set_pmacct_rd_origin(self, origin: RdOriginType) -> RouteDistinguisher {
