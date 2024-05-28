@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Opaque<T>(T);
 
 impl<T> Opaque<T> {
