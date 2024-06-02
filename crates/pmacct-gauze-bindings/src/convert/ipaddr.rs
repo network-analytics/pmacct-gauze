@@ -1,10 +1,12 @@
-use crate::{
-    bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in6_addr, in6_addr__bindgen_ty_1, in_addr,
-    prefix, prefix__bindgen_ty_1, AFI_IP, AFI_IP6,
-};
-use ipnet::{Ipv4Net, Ipv6Net};
 use std::ffi::c_int;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+use ipnet::{Ipv4Net, Ipv6Net};
+
+use crate::{
+    AFI_IP, AFI_IP6, bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in6_addr,
+    in6_addr__bindgen_ty_1, in_addr, prefix, prefix__bindgen_ty_1,
+};
 
 impl From<&Ipv4Addr> for in_addr {
     fn from(value: &Ipv4Addr) -> Self {
@@ -146,12 +148,13 @@ impl host_addr {
 
 #[cfg(test)]
 mod tests {
-    use crate::in_addr;
     use std::net::Ipv4Addr;
+
+    use crate::in_addr;
 
     #[test]
     fn in_addr_from_ipv4_addr() {
         let ip = Ipv4Addr::new(254, 1, 128, 127);
-        let other = in_addr::from(&ip);
+        let _other = in_addr::from(&ip);
     }
 }

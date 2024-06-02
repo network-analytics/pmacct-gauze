@@ -55,6 +55,7 @@ pub use free_cslice_t;
 /// ```
 /// use pmacct_gauze_lib::free_cslice_t_with_item_free;
 /// use pmacct_gauze_lib::cslice::RustFree;
+/// use pmacct_gauze_lib::cslice::CSlice;
 /// struct Struct;
 ///
 /// // This type is needed to be able to implement RustFree as we can't impl a foreign trait on arbitrary types
@@ -65,7 +66,7 @@ pub use free_cslice_t;
 /// // This impl could impl for all T
 /// impl RustFree for MutPtr<Struct> {
 ///     fn rust_free(self) {
-///         if !self.is_null() {
+///         if !self.0.is_null() {
 ///             unsafe {
 ///                 // Assuming this pointer was from a Box::into_raw. Do whatever you need to do here.
 ///                 let ptr: *mut Struct = self.0;

@@ -15,12 +15,10 @@ pub trait ExtendBmpParsingContext {
 
 impl ExtendBmpParsingContext for BmpParsingContext {
     fn peer_count(&self) -> usize {
-        self.0.len()
+        self.len()
     }
     fn add_peer(&mut self, peer_key: PeerKey, parsing_context: BgpParsingContext) {
-        let inner = &mut self.0;
-
-        inner.insert(peer_key, parsing_context);
+        self.insert(peer_key, parsing_context);
     }
 
     fn add_default_peer(&mut self, peer_key: PeerKey) {
@@ -28,14 +26,10 @@ impl ExtendBmpParsingContext for BmpParsingContext {
     }
 
     fn delete_peer(&mut self, peer_key: &PeerKey) {
-        let inner = &mut self.0;
-
-        inner.remove(peer_key);
+        self.remove(peer_key);
     }
 
     fn get_peer(&mut self, peer_key: &PeerKey) -> Option<&mut BgpParsingContext> {
-        let inner = &mut self.0;
-
-        inner.get_mut(&peer_key)
+        self.get_mut(&peer_key)
     }
 }
