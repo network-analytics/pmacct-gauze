@@ -5,6 +5,8 @@
 #![allow(improper_ctypes)]
 #![allow(dead_code)]
 
+pub use bindings::*;
+
 pub mod convert;
 pub mod print;
 
@@ -12,5 +14,3 @@ pub mod print;
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
-
-pub use bindings::*;
