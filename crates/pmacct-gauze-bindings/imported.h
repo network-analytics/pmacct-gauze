@@ -24,4 +24,5 @@
 #include <pmacct/src/bgp/bgp_community.h>
 #include <pmacct/src/bgp/bgp_lcommunity.h>
 #include <pmacct/src/bgp/bgp_ecommunity.h>
+#include <pmacct/src/bgp/bgp_table.h>
 #include <pmacct/src/log.h>

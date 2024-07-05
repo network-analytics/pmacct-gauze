@@ -78,6 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_community.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_lcommunity.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_ecommunity.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_table.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/network.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/log.h"))
         .blocklist_file("/usr/local/include/pmacct_gauze_lib/pmacct_gauze_lib.h")

@@ -6,7 +6,7 @@ use crate::{
     bgp_afi2family, host_addr, host_addr__bindgen_ty_1, prefix, prefix__bindgen_ty_1,
     DefaultZeroed, AFI_IP, AFI_IP6,
 };
-use ipnet::{Ipv4Net, Ipv6Net};
+use ipnet::{IpNet, Ipv4Net, Ipv6Net, PrefixLenError};
 
 impl From<&Ipv4Addr> for crate::in_addr {
     fn from(value: &Ipv4Addr) -> Self {
@@ -115,6 +115,58 @@ impl host_addr {
             address: host_addr__bindgen_ty_1 {
                 ipv6: crate::in6_addr::default_zeroed(),
             },
+        }
+    }
+}
+
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Copy, Clone, Hash)]
+pub struct AddrFamilyError;
+
+impl TryFrom<&host_addr> for IpAddr {
+    /// BAD FAMILY VALUE
+    type Error = AddrFamilyError;
+
+    fn try_from(value: &host_addr) -> Result<Self, Self::Error> {
+        match value.family as i32 {
+            AF_INET => unsafe {
+                Ok(IpAddr::V4(Ipv4Addr::from(value.address.ipv4)))
+            }
+            AF_INET6 => unsafe {
+                Ok(IpAddr::V6(Ipv6Addr::from(&value.address.ipv6)))
+            }
+            _ => {
+                Err(AddrFamilyError)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Copy, Clone, Hash)]
+pub enum PrefixError {
+    PrefixLenError,
+    AddrFamilyError,
+}
+
+impl From<PrefixLenError> for PrefixError {
+    fn from(_value: PrefixLenError) -> Self {
+        PrefixError::PrefixLenError
+    }
+}
+
+impl TryFrom<&prefix> for IpNet {
+    type Error = PrefixError;
+
+    fn try_from(value: &prefix) -> Result<Self, Self::Error> {
+        match value.family as i32 {
+            AF_INET => unsafe {
+                Ok(IpNet::V4(Ipv4Net::new(Ipv4Addr::from(&value.u.prefix4), value.prefixlen)?))
+            }
+            AF_INET6 => unsafe {
+                Ok(IpNet::V6(Ipv6Net::new(Ipv6Addr::from(&value.u.prefix6), value.prefixlen)?))
+            }
+            _ => {
+                Err(PrefixError::AddrFamilyError)
+            }
         }
     }
 }

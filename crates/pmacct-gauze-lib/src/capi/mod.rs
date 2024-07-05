@@ -1,5 +1,6 @@
 pub mod bgp;
 pub mod bmp;
+pub mod features;
 
 #[no_mangle]
 pub extern "C" fn nonce10() {}
