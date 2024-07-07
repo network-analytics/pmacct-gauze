@@ -8,6 +8,8 @@ use std::rc::Rc;
 
 use ipnet::Ipv4Net;
 
+use crate::capi::features::prefix_tree::NodeType::*;
+
 #[derive(Default, Clone)]
 pub struct PrefixTree {
     top: Option<NodeRef>,
@@ -16,17 +18,15 @@ pub struct PrefixTree {
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct NodeRef(Rc<RefCell<Node>>);
 
-
-// UNUSED ATM
-// TODO use and mark removed nodes and "common_node" results as Structural so they can be pruned
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum NodeType {
-    Real,
+    Entry,
     Structural,
 }
 
 #[derive(Clone)]
 pub struct Node {
+    node_type: NodeType,
     prefix: Ipv4Net,
     left: Option<NodeRef>,
     right: Option<NodeRef>,
@@ -35,22 +35,10 @@ pub struct Node {
 
 impl Debug for PrefixTree {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut nodes = BTreeSet::<Node>::new();
-
-        let mut node = self.top.clone();
-        while let Some(noderef) = node.clone() {
-            nodes.insert(noderef.borrow().clone());
-
-            if let Some(left) = &noderef.borrow().left && !nodes.contains(&left.borrow().clone()) {
-                node = Some(left.clone());
-            } else if let Some(right) = &noderef.borrow().right && !nodes.contains(&right.borrow().clone()) {
-                node = Some(right.clone());
-            } else if noderef.borrow().parent != node {
-                node = noderef.borrow().parent.clone()
-            } else {
-                break;
-            }
-        }
+        let mut nodes = BTreeSet::new();
+        self.walk(|node| {
+            nodes.insert(node);
+        });
 
         let mut debug = f.debug_struct("PrefixTree");
         debug.field("top", &self.top);
@@ -62,12 +50,14 @@ impl Debug for PrefixTree {
 
 impl NodeRef {
     pub fn new(
+        node_type: NodeType,
         prefix: Ipv4Net,
         left: Option<NodeRef>,
         right: Option<NodeRef>,
         parent: Option<NodeRef>,
     ) -> Self {
         let node = Node {
+            node_type,
             prefix,
             left,
             right,
@@ -113,7 +103,7 @@ impl Ord for Node {
 impl Debug for Node {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("Node");
-
+        debug.field("type", &self.node_type);
         debug.field("prefix", &self.prefix);
         debug.field("left", &self.left.as_ref().map(|noderef| noderef.borrow().prefix));
         debug.field("right", &self.right.as_ref().map(|noderef| noderef.borrow().prefix));
@@ -150,7 +140,7 @@ pub fn common_node(node: &NodeRef, route: &Ipv4Net) -> NodeRef {
         common_bits as u8,
     ).unwrap();
 
-    NodeRef::new(common_route, None, None, node.borrow().parent.clone())
+    NodeRef::new(Structural, common_route, None, None, node.borrow().parent.clone())
 }
 impl Node {
     pub fn set_right_node(&mut self, child: Option<NodeRef>) {
@@ -161,7 +151,7 @@ impl Node {
         self.left = child
     }
 
-    pub fn set_child_node(&mut self, child: Option<NodeRef>, branch: Branch) {
+    pub fn set_branch(&mut self, branch: Branch, child: Option<NodeRef>) {
         match branch {
             Branch::Left => self.set_left_node(child),
             Branch::Right => self.set_right_node(child)
@@ -177,12 +167,26 @@ impl Node {
             None
         };
     }
+
+    pub fn get_branch(&self, branch: Branch) -> Option<NodeRef> {
+        match branch {
+            Branch::Left => self.left.clone(),
+            Branch::Right => self.right.clone()
+        }
+    }
+
+    pub fn child_count(&self) -> usize {
+        let mut result = 0;
+        if let Some(_) = &self.left { result += 1 }
+        if let Some(_) = &self.right { result += 1 }
+        result
+    }
 }
 
 pub fn set_child_node_and_parent(parent: NodeRef, child: NodeRef) {
     let branch = compute_branch(&parent.borrow().prefix, &child.borrow().prefix);
 
-    parent.borrow_mut().set_child_node(Some(child.clone()), branch);
+    parent.borrow_mut().set_branch(branch, Some(child.clone()));
     child.borrow_mut().parent = Some(parent);
 }
 
@@ -199,6 +203,16 @@ pub enum Branch {
     Left,
     Right,
 }
+
+impl Branch {
+    pub fn other(self) -> Self {
+        match self {
+            Branch::Left => Branch::Right,
+            Branch::Right => Branch::Left
+        }
+    }
+}
+
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum LookupResult {
     Empty,
@@ -212,6 +226,25 @@ pub enum LookupResult {
 impl PrefixTree {
     pub fn set_top(&mut self, top: Option<NodeRef>) {
         self.top = top;
+    }
+
+    pub fn walk(&self, mut callback: impl FnMut(NodeRef)) {
+        if self.top.is_none() {
+            return;
+        }
+
+        let mut vec = Vec::new();
+        vec.push(self.top.clone().unwrap());
+
+        while let Some(node) = vec.pop() {
+            if let Some(right) = &node.borrow().right {
+                vec.push(right.clone())
+            }
+            if let Some(left) = &node.borrow().left {
+                vec.push(left.clone());
+            }
+            callback(node);
+        }
     }
 
     pub fn lookup(&self, prefix: &Ipv4Net) -> LookupResult {
@@ -261,20 +294,25 @@ impl PrefixTree {
         let root = match lookup {
             // If no route in tree it's easy: new prefix is the first entry
             LookupResult::Empty => {
-                self.top = Some(NodeRef::new(prefix, None, None, None));
+                self.top = Some(NodeRef::new(Entry, prefix, None, None, None));
                 return;
             }
             // Route already exists. Nothing to do
-            LookupResult::Found(_) => return,
+            LookupResult::Found(node) => {
+                if node.borrow().node_type == Structural {
+                    node.borrow_mut().node_type = Entry;
+                }
+                return;
+            }
 
             // Use the closest match after lookup
             LookupResult::ClosestMatch { node, branch } => {
                 match branch {
                     // The prefix we looked up is supposed to be on branch 'branch' of our 'node'
                     Some(branch) => {
-                        node.borrow_mut().set_child_node(
-                            Some(NodeRef::new(prefix, None, None, Some(node.clone()))),
+                        node.borrow_mut().set_branch(
                             branch,
+                            Some(NodeRef::new(Entry, prefix, None, None, Some(node.clone()))),
                         );
                         return;
                     }
@@ -288,7 +326,7 @@ impl PrefixTree {
         // Now, root is either where the prefix is different, or where it has a bigger prefix length
         // We know the prefix is not contained by the node. However, the node may be contained by prefix
         let potential_top = if prefix.contains(&root.borrow().prefix) {
-            let new_node = NodeRef::new(prefix, None, None, root.borrow().parent.clone());
+            let new_node = NodeRef::new(Entry, prefix, None, None, root.borrow().parent.clone());
 
             // Since new_node contains node we make it the parent of node
             insert_parent_above(new_node.clone(), root);
@@ -299,7 +337,7 @@ impl PrefixTree {
             // or else the lookup would have returned either an empty branch or a child of root)
             // We need a common parent for both of them
             let common_node = common_node(&root, &prefix);
-            let new_node = NodeRef::new(prefix, None, None, Some(common_node.clone()));
+            let new_node = NodeRef::new(Entry, prefix, None, None, Some(common_node.clone()));
 
             // Put the children on the branch they belong on
             insert_parent_above(common_node.clone(), root);
@@ -315,39 +353,89 @@ impl PrefixTree {
         };
     }
 
+    // FIXME ensure that we destroy tree by removing the parent of each Node we let go of
     pub fn delete(&mut self, prefix: Ipv4Net) {
         let node = match self.lookup(&prefix) {
             // If we do not find the exact prefix we have nothing to remove
             LookupResult::Empty
             | LookupResult::ClosestMatch { .. } => return,
+            LookupResult::Found(node) if node.borrow().node_type == Structural => return,
 
-            LookupResult::Found(node) => node
+            LookupResult::Found(node) => node,
         };
 
-        let child = match (&node.borrow().left, &node.borrow().right) {
-            // Both children are used so we still need this node
-            (Some(_), Some(_)) => return,
-            (Some(child), None)
-            | (None, Some(child)) => {
-                Some(child.clone())
-            }
-            (None, None) => None
+        // Both children are used so we still need this node, mark it as Structural
+        if node.borrow().left.is_some() && node.borrow().right.is_some() {
+            node.borrow_mut().node_type = Structural;
+            // TODO optimize by merging if parent is also structural
+            return;
+        }
+
+        // Find child of removed node
+        let child = if let Some(child) = &node.borrow().left {
+            Some(child.clone())
+        } else if let Some(child) = &node.borrow().right {
+            Some(child.clone())
+        } else {
+            None
         };
 
+        // Find parent of removed node
         let parent = node.borrow().parent.clone();
 
+        // The parent of child becomes the parent of node. It can be None
         if let Some(child) = &child {
             child.borrow_mut().parent = parent.clone()
         }
 
-        if let Some(parent) = parent {
-            let branch = parent.borrow().has_direct_child(node).unwrap();
-            parent.borrow_mut().set_child_node(child, branch);
-        } else {
-            self.set_top(child)
+        // If removed node had no parent it was the table top and the child becomes it
+        if let None = parent {
+            self.set_top(child);
+            return;
         }
 
-        // TODO opti remove parent if not needed as well (use structural node type)
+        // If removed node had a parent then the only child of node becomes the child of parent
+        let parent = parent.unwrap();
+        let branch = parent.borrow().has_direct_child(node).unwrap();
+        parent.borrow_mut().set_branch(branch, child.clone());
+
+        //              grandparent
+        //             /            \
+        //       parent               some_other_node
+        //      /      \
+        //  node       some_node
+        //      \
+        //      child
+        // we removed node so now we have
+        //              grandparent
+        //             /            \
+        //       parent               some_other_node
+        //      /      \
+        //  child       some_node
+        //  (None)
+        // if child was None and parent structural (must have 2 children) then parent has no use anymore
+        // and we replace parent by some_node
+        // TODO move the final step of removing superfluous structural nodes if child is None
+        if parent.borrow().node_type == Structural && child.is_none() {
+            // If some_node is None then I fucked up somewhere
+            let some_node = parent.borrow().get_branch(branch.other()).unwrap();
+
+            if let Some(grandparent) = &parent.borrow().parent {
+                let grandparent = grandparent.clone();
+                set_child_node_and_parent(grandparent, some_node);
+            } else {
+                some_node.borrow_mut().parent = None;
+                self.set_top(Some(some_node))
+            }
+        }
+    }
+}
+
+impl Drop for PrefixTree {
+    fn drop(&mut self) {
+        self.walk(|node| {
+            node.borrow_mut().parent = None
+        });
     }
 }
 
