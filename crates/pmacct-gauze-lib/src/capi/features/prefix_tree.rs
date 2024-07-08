@@ -1,22 +1,109 @@
+#![feature(let_chains)]
+
 use std::cell::RefCell;
 use std::cmp::{Ordering, PartialEq};
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Formatter};
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use ipnet::Ipv4Net;
-
+use ipnet::{Ipv4Net, Ipv6Net};
 use crate::capi::features::prefix_tree::NodeType::*;
 
+pub trait Prefix : Ord + PartialOrd + PartialEq + Eq + Debug + Clone {
+    fn common_route(&self, other: &Self) -> Self;
+    fn is_left_of(&self, parent: &Self) -> bool;
+    fn contains(&self, child: &Self) -> bool;
+    fn max_prefix_len(&self) -> u8;
+    fn prefix_len(&self) -> u8;
+
+}
+
+impl Prefix for Ipv4Net {
+
+    fn common_route(&self, other: &Self) -> Self {
+        let first_addr = self.network().to_bits();
+        let second_addr = other.network().to_bits();
+
+        let common_bits = (first_addr ^ second_addr).leading_zeros();
+        let common_mask = u32::MAX << (u32::BITS - common_bits);
+
+        Ipv4Net::new(
+            Ipv4Addr::from_bits(first_addr & common_mask),
+            common_bits as u8,
+        ).unwrap()
+    }
+
+    fn is_left_of(&self, parent: &Self) -> bool {
+        let prefix_max_len = parent.max_prefix_len();
+        let parent_len = parent.prefix_len();
+        // shift to get next bit of the child network address
+        // the next bit is the bit in the child following the parent network address
+        let shift = prefix_max_len - parent_len - 1;
+
+        // if the next bit is one the child goes to the left (we could do the opposite)
+        (self.network().to_bits() >> shift) & 1 == 1
+    }
+
+    fn contains(&self, child: &Self) -> bool {
+        Ipv4Net::contains(self, child)
+    }
+
+    fn max_prefix_len(&self) -> u8 {
+        self.max_prefix_len()
+    }
+
+    fn prefix_len(&self) -> u8 {
+        self.prefix_len()
+    }
+}
+
+impl Prefix for Ipv6Net {
+    fn common_route(&self, other: &Self) -> Self {
+        let first_addr = self.network().to_bits();
+        let second_addr = other.network().to_bits();
+
+        let common_bits = (first_addr ^ second_addr).leading_zeros();
+        let common_mask = u128::MAX << (u128::BITS - common_bits);
+
+        Ipv6Net::new(
+            Ipv6Addr::from_bits(first_addr & common_mask),
+            common_bits as u8,
+        ).unwrap()
+    }
+
+    fn is_left_of(&self, parent: &Self) -> bool {
+        let prefix_max_len = parent.max_prefix_len();
+        let parent_len = parent.prefix_len();
+        // shift to get next bit of the child network address
+        // the next bit is the bit in the child following the parent network address
+        let shift = prefix_max_len - parent_len - 1;
+
+        // if the next bit is one the child goes to the left (we could do the opposite)
+        (self.network().to_bits() >> shift) & 1 == 1
+    }
+
+    fn contains(&self, child: &Self) -> bool {
+        Ipv6Net::contains(self, child)
+    }
+
+    fn max_prefix_len(&self) -> u8 {
+        Ipv6Net::max_prefix_len(self)
+    }
+
+    fn prefix_len(&self) -> u8 {
+        Ipv6Net::prefix_len(self)
+    }
+}
+
 #[derive(Default, Clone)]
-pub struct PrefixTree {
-    top: Option<NodeRef>,
+pub struct PrefixTree<Pfx> where Pfx: Prefix {
+    top: Option<TreeRef<Pfx>>,
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub struct NodeRef(Rc<RefCell<Node>>);
+pub struct TreeRef<Pfx: Prefix>(Rc<RefCell<Node<Pfx>>>);
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum NodeType {
@@ -25,15 +112,15 @@ pub enum NodeType {
 }
 
 #[derive(Clone)]
-pub struct Node {
+pub struct Node<Pfx: Prefix> {
     node_type: NodeType,
-    prefix: Ipv4Net,
-    left: Option<NodeRef>,
-    right: Option<NodeRef>,
-    parent: Option<NodeRef>,
+    prefix: Pfx,
+    left: Option<TreeRef<Pfx>>,
+    right: Option<TreeRef<Pfx>>,
+    parent: Option<TreeRef<Pfx>>,
 }
 
-impl Debug for PrefixTree {
+impl<Pfx: Prefix> Debug for PrefixTree<Pfx> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut nodes = BTreeSet::new();
         self.walk(|node| {
@@ -48,13 +135,13 @@ impl Debug for PrefixTree {
 }
 
 
-impl NodeRef {
+impl<Pfx> TreeRef<Pfx> where Pfx: Prefix {
     pub fn new(
         node_type: NodeType,
-        prefix: Ipv4Net,
-        left: Option<NodeRef>,
-        right: Option<NodeRef>,
-        parent: Option<NodeRef>,
+        prefix: Pfx,
+        left: Option<TreeRef<Pfx>>,
+        right: Option<TreeRef<Pfx>>,
+        parent: Option<TreeRef<Pfx>>,
     ) -> Self {
         let node = Node {
             node_type,
@@ -64,101 +151,85 @@ impl NodeRef {
             parent,
         };
 
-        NodeRef(Rc::new(RefCell::new(node)))
+        TreeRef(Rc::new(RefCell::new(node)))
     }
 }
-impl Deref for NodeRef {
-    type Target = Rc<RefCell<Node>>;
+impl<Pfx: Prefix> Deref for TreeRef<Pfx>{
+    type Target = Rc<RefCell<Node<Pfx>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for NodeRef {
+impl<Pfx: Prefix> DerefMut for TreeRef<Pfx> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
-impl Eq for Node {}
+impl<Pfx> Eq for Node<Pfx> where Pfx: Prefix {}
 
-impl PartialEq<Self> for Node {
+impl<Pfx> PartialEq<Self> for Node<Pfx> where Pfx: Prefix {
     fn eq(&self, other: &Self) -> bool {
         self.prefix.eq(&other.prefix)
     }
 }
 
-impl PartialOrd<Self> for Node {
+impl<Pfx> PartialOrd<Self> for Node<Pfx> where Pfx: Prefix {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.prefix.partial_cmp(&other.prefix)
     }
 }
 
-impl Ord for Node {
+impl<Pfx> Ord for Node<Pfx> where Pfx: Prefix {
     fn cmp(&self, other: &Self) -> Ordering {
         self.prefix.cmp(&other.prefix)
     }
 }
 
-impl Debug for Node {
+impl<Pfx: Prefix> Debug for Node<Pfx> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("Node");
         debug.field("type", &self.node_type);
         debug.field("prefix", &self.prefix);
-        debug.field("left", &self.left.as_ref().map(|noderef| noderef.borrow().prefix));
-        debug.field("right", &self.right.as_ref().map(|noderef| noderef.borrow().prefix));
-        debug.field("parent", &self.parent.as_ref().map(|noderef| noderef.borrow().prefix));
+        debug.field("left", &self.left.as_ref().map(|noderef| noderef.borrow().prefix.clone()));
+        debug.field("right", &self.right.as_ref().map(|noderef| noderef.borrow().prefix.clone()));
+        debug.field("parent", &self.parent.as_ref().map(|noderef| noderef.borrow().prefix.clone()));
 
         debug.finish()
     }
 }
 
-pub fn compute_branch(parent: &Ipv4Net, child: &Ipv4Net) -> Branch {
-    let prefix_max_len = parent.max_prefix_len();
-    let parent_len = parent.prefix_len();
-    // shift to get next bit of the child network address
-    // the next bit is the bit in the child following the parent network address
-    let shift = prefix_max_len - parent_len - 1;
-
-    // if the next bit is one the child goes to the left (we could do the opposite)
-    match (child.network().to_bits() >> shift) & 1 == 1 {
+pub fn compute_branch<Pfx: Prefix>(parent: &Pfx, child: &Pfx) -> Branch {
+    match child.is_left_of(parent) {
         true => Branch::Left,
         false => Branch::Right
     }
 }
 
-pub fn common_node(node: &NodeRef, route: &Ipv4Net) -> NodeRef {
-    let first = node.borrow().prefix;
-    let first_addr = first.network().to_bits();
-    let second_addr = route.network().to_bits();
+pub fn common_node<Pfx: Prefix>(node: &TreeRef<Pfx>, route: &Pfx) -> TreeRef<Pfx> {
 
-    let common_bits = (first_addr ^ second_addr).leading_zeros();
-    let common_mask = u32::MAX << (u32::BITS - common_bits);
-
-    let common_route = Ipv4Net::new(
-        Ipv4Addr::from_bits(first_addr & common_mask),
-        common_bits as u8,
-    ).unwrap();
-
-    NodeRef::new(Structural, common_route, None, None, node.borrow().parent.clone())
+    let common_route = (&node.borrow().prefix).common_route(route);
+    TreeRef::new(Structural, common_route, None, None, node.borrow().parent.clone())
 }
-impl Node {
-    pub fn set_right_node(&mut self, child: Option<NodeRef>) {
+
+impl<Pfx: Prefix> Node<Pfx> {
+    pub fn set_right_node(&mut self, child: Option<TreeRef<Pfx>>) {
         self.right = child
     }
 
-    pub fn set_left_node(&mut self, child: Option<NodeRef>) {
+    pub fn set_left_node(&mut self, child: Option<TreeRef<Pfx>>) {
         self.left = child
     }
 
-    pub fn set_branch(&mut self, branch: Branch, child: Option<NodeRef>) {
+    pub fn set_branch(&mut self, branch: Branch, child: Option<TreeRef<Pfx>>) {
         match branch {
             Branch::Left => self.set_left_node(child),
             Branch::Right => self.set_right_node(child)
         }
     }
 
-    pub fn has_direct_child(&self, child: NodeRef) -> Option<Branch> {
+    pub fn has_direct_child(&self, child: TreeRef<Pfx>) -> Option<Branch> {
         return if let Some(left) = &self.left && child.eq(left) {
             Some(Branch::Left)
         } else if let Some(right) = &self.right && child.eq(right) {
@@ -168,7 +239,7 @@ impl Node {
         };
     }
 
-    pub fn get_branch(&self, branch: Branch) -> Option<NodeRef> {
+    pub fn get_branch(&self, branch: Branch) -> Option<TreeRef<Pfx>> {
         match branch {
             Branch::Left => self.left.clone(),
             Branch::Right => self.right.clone()
@@ -183,14 +254,14 @@ impl Node {
     }
 }
 
-pub fn set_child_node_and_parent(parent: NodeRef, child: NodeRef) {
+pub fn set_child_node_and_parent<Pfx: Prefix>(parent: TreeRef<Pfx>, child: TreeRef<Pfx>) {
     let branch = compute_branch(&parent.borrow().prefix, &child.borrow().prefix);
 
     parent.borrow_mut().set_branch(branch, Some(child.clone()));
     child.borrow_mut().parent = Some(parent);
 }
 
-pub fn insert_parent_above(parent: NodeRef, child: NodeRef) {
+pub fn insert_parent_above<Pfx: Prefix>(parent: TreeRef<Pfx>, child: TreeRef<Pfx>) {
     let old_parent = child.borrow().parent.clone();
     set_child_node_and_parent(parent.clone(), child);
     if let Some(old_parent) = old_parent && old_parent != parent {
@@ -214,21 +285,21 @@ impl Branch {
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
-pub enum LookupResult {
+pub enum LookupResult<Pfx: Prefix> {
     Empty,
     ClosestMatch {
-        node: NodeRef,
+        node: TreeRef<Pfx>,
         branch: Option<Branch>,
     },
-    Found(NodeRef),
+    Found(TreeRef<Pfx>),
 }
 
-impl PrefixTree {
-    pub fn set_top(&mut self, top: Option<NodeRef>) {
+impl<Pfx: Prefix> PrefixTree<Pfx> {
+    pub fn set_top(&mut self, top: Option<TreeRef<Pfx>>) {
         self.top = top;
     }
 
-    pub fn walk(&self, mut callback: impl FnMut(NodeRef)) {
+    pub fn walk(&self, mut callback: impl FnMut(TreeRef<Pfx>)) {
         if self.top.is_none() {
             return;
         }
@@ -247,7 +318,7 @@ impl PrefixTree {
         }
     }
 
-    pub fn lookup(&self, prefix: &Ipv4Net) -> LookupResult {
+    pub fn lookup(&self, prefix: &Pfx) -> LookupResult<Pfx> {
         if let None = self.top {
             return LookupResult::Empty;
         };
@@ -286,7 +357,7 @@ impl PrefixTree {
     //  or check if the returned value is greater than prefix.prefix_length(). one may be better
     //  to avoid useless allocations
 
-    pub fn insert(&mut self, prefix: Ipv4Net) {
+    pub fn insert(&mut self, prefix: Pfx) {
 
         // Find where we should be inserting
         let lookup = self.lookup(&prefix);
@@ -294,7 +365,7 @@ impl PrefixTree {
         let root = match lookup {
             // If no route in tree it's easy: new prefix is the first entry
             LookupResult::Empty => {
-                self.top = Some(NodeRef::new(Entry, prefix, None, None, None));
+                self.top = Some(TreeRef::new(Entry, prefix, None, None, None));
                 return;
             }
             // Route already exists. Nothing to do
@@ -312,7 +383,7 @@ impl PrefixTree {
                     Some(branch) => {
                         node.borrow_mut().set_branch(
                             branch,
-                            Some(NodeRef::new(Entry, prefix, None, None, Some(node.clone()))),
+                            Some(TreeRef::new(Entry, prefix, None, None, Some(node.clone()))),
                         );
                         return;
                     }
@@ -326,7 +397,7 @@ impl PrefixTree {
         // Now, root is either where the prefix is different, or where it has a bigger prefix length
         // We know the prefix is not contained by the node. However, the node may be contained by prefix
         let potential_top = if prefix.contains(&root.borrow().prefix) {
-            let new_node = NodeRef::new(Entry, prefix, None, None, root.borrow().parent.clone());
+            let new_node = TreeRef::new(Entry, prefix, None, None, root.borrow().parent.clone());
 
             // Since new_node contains node we make it the parent of node
             insert_parent_above(new_node.clone(), root);
@@ -337,7 +408,7 @@ impl PrefixTree {
             // or else the lookup would have returned either an empty branch or a child of root)
             // We need a common parent for both of them
             let common_node = common_node(&root, &prefix);
-            let new_node = NodeRef::new(Entry, prefix, None, None, Some(common_node.clone()));
+            let new_node = TreeRef::new(Entry, prefix, None, None, Some(common_node.clone()));
 
             // Put the children on the branch they belong on
             insert_parent_above(common_node.clone(), root);
@@ -354,7 +425,7 @@ impl PrefixTree {
     }
 
     // FIXME ensure that we destroy tree by removing the parent of each Node we let go of
-    pub fn delete(&mut self, prefix: Ipv4Net) {
+    pub fn delete(&mut self, prefix: Pfx) {
         let node = match self.lookup(&prefix) {
             // If we do not find the exact prefix we have nothing to remove
             LookupResult::Empty
@@ -431,7 +502,7 @@ impl PrefixTree {
     }
 }
 
-impl Drop for PrefixTree {
+impl<Pfx: Prefix> Drop for PrefixTree<Pfx> {
     fn drop(&mut self) {
         self.walk(|node| {
             node.borrow_mut().parent = None
@@ -444,7 +515,6 @@ mod tests {
     use std::str::FromStr;
 
     use ipnet::Ipv4Net;
-
     use crate::capi::features::prefix_tree::PrefixTree;
 
     #[test]
