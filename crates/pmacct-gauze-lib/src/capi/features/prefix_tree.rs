@@ -9,19 +9,18 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use ipnet::{Ipv4Net, Ipv6Net};
+
 use crate::capi::features::prefix_tree::NodeType::*;
 
-pub trait Prefix : Ord + PartialOrd + PartialEq + Eq + Debug + Clone {
+pub trait Prefix: Ord + PartialOrd + PartialEq + Eq + Debug + Clone {
     fn common_route(&self, other: &Self) -> Self;
     fn is_left_of(&self, parent: &Self) -> bool;
     fn contains(&self, child: &Self) -> bool;
     fn max_prefix_len(&self) -> u8;
     fn prefix_len(&self) -> u8;
-
 }
 
 impl Prefix for Ipv4Net {
-
     fn common_route(&self, other: &Self) -> Self {
         let first_addr = self.network().to_bits();
         let second_addr = other.network().to_bits();
@@ -98,7 +97,10 @@ impl Prefix for Ipv6Net {
 }
 
 #[derive(Default, Clone)]
-pub struct PrefixTree<Pfx> where Pfx: Prefix {
+pub struct PrefixTree<Pfx>
+where
+    Pfx: Prefix,
+{
     top: Option<TreeRef<Pfx>>,
 }
 
@@ -113,8 +115,8 @@ pub enum NodeType {
 
 #[derive(Clone)]
 pub struct Node<Pfx: Prefix> {
-    node_type: NodeType,
-    prefix: Pfx,
+    pub(crate) node_type: NodeType,
+    pub(crate) prefix: Pfx,
     left: Option<TreeRef<Pfx>>,
     right: Option<TreeRef<Pfx>>,
     parent: Option<TreeRef<Pfx>>,
@@ -135,7 +137,10 @@ impl<Pfx: Prefix> Debug for PrefixTree<Pfx> {
 }
 
 
-impl<Pfx> TreeRef<Pfx> where Pfx: Prefix {
+impl<Pfx> TreeRef<Pfx>
+where
+    Pfx: Prefix,
+{
     pub fn new(
         node_type: NodeType,
         prefix: Pfx,
@@ -154,7 +159,7 @@ impl<Pfx> TreeRef<Pfx> where Pfx: Prefix {
         TreeRef(Rc::new(RefCell::new(node)))
     }
 }
-impl<Pfx: Prefix> Deref for TreeRef<Pfx>{
+impl<Pfx: Prefix> Deref for TreeRef<Pfx> {
     type Target = Rc<RefCell<Node<Pfx>>>;
 
     fn deref(&self) -> &Self::Target {
@@ -169,19 +174,28 @@ impl<Pfx: Prefix> DerefMut for TreeRef<Pfx> {
 }
 impl<Pfx> Eq for Node<Pfx> where Pfx: Prefix {}
 
-impl<Pfx> PartialEq<Self> for Node<Pfx> where Pfx: Prefix {
+impl<Pfx> PartialEq<Self> for Node<Pfx>
+where
+    Pfx: Prefix,
+{
     fn eq(&self, other: &Self) -> bool {
         self.prefix.eq(&other.prefix)
     }
 }
 
-impl<Pfx> PartialOrd<Self> for Node<Pfx> where Pfx: Prefix {
+impl<Pfx> PartialOrd<Self> for Node<Pfx>
+where
+    Pfx: Prefix,
+{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.prefix.partial_cmp(&other.prefix)
     }
 }
 
-impl<Pfx> Ord for Node<Pfx> where Pfx: Prefix {
+impl<Pfx> Ord for Node<Pfx>
+where
+    Pfx: Prefix,
+{
     fn cmp(&self, other: &Self) -> Ordering {
         self.prefix.cmp(&other.prefix)
     }
@@ -208,7 +222,6 @@ pub fn compute_branch<Pfx: Prefix>(parent: &Pfx, child: &Pfx) -> Branch {
 }
 
 pub fn common_node<Pfx: Prefix>(node: &TreeRef<Pfx>, route: &Pfx) -> TreeRef<Pfx> {
-
     let common_route = (&node.borrow().prefix).common_route(route);
     TreeRef::new(Structural, common_route, None, None, node.borrow().parent.clone())
 }
@@ -425,8 +438,8 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
     }
 
     // FIXME ensure that we destroy tree by removing the parent of each Node we let go of
-    pub fn delete(&mut self, prefix: Pfx) {
-        let node = match self.lookup(&prefix) {
+    pub fn delete(&mut self, prefix: &Pfx) {
+        let node = match self.lookup(prefix) {
             // If we do not find the exact prefix we have nothing to remove
             LookupResult::Empty
             | LookupResult::ClosestMatch { .. } => return,
@@ -515,6 +528,7 @@ mod tests {
     use std::str::FromStr;
 
     use ipnet::Ipv4Net;
+
     use crate::capi::features::prefix_tree::PrefixTree;
 
     #[test]
@@ -529,10 +543,10 @@ mod tests {
         tree.insert(Ipv4Net::from_str("10.10.11.0/24").unwrap());
         println!("{:#?}", tree);
 
-        tree.delete(Ipv4Net::from_str("0.0.0.0/0").unwrap());
-        tree.delete(Ipv4Net::from_str("10.10.10.0/24").unwrap());
-        tree.delete(Ipv4Net::from_str("10.10.10.0/23").unwrap());
-        tree.delete(Ipv4Net::from_str("10.10.10.10/32").unwrap());
+        tree.delete(&Ipv4Net::from_str("0.0.0.0/0").unwrap());
+        tree.delete(&Ipv4Net::from_str("10.10.10.0/24").unwrap());
+        tree.delete(&Ipv4Net::from_str("10.10.10.0/23").unwrap());
+        tree.delete(&Ipv4Net::from_str("10.10.10.10/32").unwrap());
         println!("{:#?}", tree);
     }
 }
