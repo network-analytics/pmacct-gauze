@@ -1,11 +1,11 @@
+use std::{mem, slice};
 use std::collections::HashSet;
 use std::net::IpAddr;
-use std::ptr::null_mut;
-use std::slice;
 
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 
-use pmacct_gauze_bindings::{bgp_info, bgp_peer, bgp_route_next, bgp_select_misc_db, bgp_table, bgp_table_top, bmp_peer};
+use pmacct_gauze_bindings::{bgp_info, BGP_MSG_EXTRA_DATA_BMP, bgp_peer, bgp_route_next, bgp_select_misc_db, bgp_table, bgp_table_top, bmp_chars, bmp_peer, BMP_PEER_TYPE_L3VPN};
+use pmacct_gauze_bindings::FUNC_TYPE_BMP;
 
 use crate::capi::features::rib::{Rib, RibPrefixTree};
 
@@ -64,7 +64,8 @@ impl Site {
         new
     }
 
-    // TODO use route table to do longest and shortest prefix lookup for mspi
+    // Use route table to do longest prefix match for MSPI (More Specific Prefix Injection) detection
+    // We only do longest prefix match because routes are inserted in the RIB in less to more specific order
     pub fn is_mspi(&self, prefix: &IpNet) -> bool {
         return match prefix {
             IpNet::V4(prefix) => {
@@ -116,29 +117,33 @@ pub fn group_pfx_of_same_link_set(prefix_link: PrefixLinksMap) -> Vec<Site> {
     sites
 }
 
+// Discover prefixes in the route table and the links that advertise them
 pub unsafe fn prefix_link_discovery(peer: *mut bgp_peer, table: *const bgp_table) -> PrefixLinksMap {
     let mut map = PrefixLinksMap::default();
+
     let bms = *bgp_select_misc_db((*peer).type_);
 
-    let root = bgp_table_top(peer, table);
+    // Create dummy bgp_peer to read the RIB
+    let mut reader: bgp_peer = mem::zeroed();
+    reader.type_ = FUNC_TYPE_BMP as i32;
 
-    // TODO filter for a VPN client based on community
-    let vpn_comm = 0;
+    // TODO filter for a VPN client based on community, if this is None then do not filter
+    let vpn_filter = None;
 
-    let mut node = root;
+    // Walk the prefix tree
+    let mut node = bgp_table_top(&mut reader, table);
     while !node.is_null() {
-        let route = *node;
+        let route = node.as_ref().unwrap();
 
-        let modulo = if let Some(callback) = bms.route_info_modulo {
-            callback(peer, null_mut(), null_mut(), null_mut(), bms.table_per_peer_buckets)
-        } else {
-            0
-        };
+        let prefix = IpNet::try_from(&route.p).unwrap();
 
-        for peer_buckets in 0..bms.table_per_peer_buckets as usize {
-            let position = peer_buckets + modulo as usize;
-            let mut ri = *(route.info.add(position) as *mut *mut bgp_info);
+        // Walk route information (paths)
+        // We want to look at all paths in the rib so we iterate in all buckets peer_buckets * per_peer_buckets)
+        let route_info_table = slice::from_raw_parts(route.info as *mut *mut bgp_info, (bms.table_per_peer_buckets * bms.table_peer_buckets) as usize);
+        for bucket in route_info_table {
 
+            // In a bucket we have a linked-list of paths, iterate over it
+            let mut ri = *bucket;
             while !ri.is_null() {
                 let info = ri.as_ref().unwrap();
                 let path_peer = info.peer.as_ref().unwrap();
@@ -146,46 +151,61 @@ pub unsafe fn prefix_link_discovery(peer: *mut bgp_peer, table: *const bgp_table
                 // Filter path by VPN ID
                 let belongs_to_vpn_client = {
                     if let Some(attr) = info.attr.as_ref()
-                        && let Some(comm) = attr.community.as_ref() {
+                        && let Some(comm) = attr.community.as_ref()
+                        && let Some(vpn_comm) = vpn_filter {
                         let slice = slice::from_raw_parts(comm.val, comm.size as usize);
                         slice.iter().any(|comm| *comm == vpn_comm)
-                    } else { false }
+                    } else {
+                        // If we have no filter configured keep all paths
+                        vpn_filter.is_none()
+                    }
                 };
 
-                if !belongs_to_vpn_client { continue; }
+                if !belongs_to_vpn_client {
+                    ri = info.next;
+                    continue;
+                }
 
+                // We want paths that we know were received on a PE-CE link and not on a PE-PE link
+                // To do that we only keep adj-rib-in paths since paths from RD Instance Peers
+                // (bmp sessions in the client VRF instead of the default VRF)
+                assert_eq!(info.bmed.id, BGP_MSG_EXTRA_DATA_BMP as u8);
+                if let Some(data) = (info.bmed.data as *const bmp_chars).as_ref() {
+                    if data.is_out != 0 || data.is_loc != 0 || data.peer_type != BMP_PEER_TYPE_L3VPN as u8 { // This is not adj-in pre or post
+                        ri = info.next;
+                        continue;
+                    }
+                } else {
+                    panic!("no bmp data wtf?");
+                }
+
+                // Build the link information based on the path info
                 let learnt_from_bmp = (path_peer.bmp_se as *mut bmp_peer).as_ref().unwrap();
                 let learnt_from_bmp_bgp = &learnt_from_bmp.self_;
 
-                // TODO ensure that PE is the origin PE of the route
-
-                println!("route {:#?}", &route.p);
+                // The PE is the source of the BMP message
                 let pe = learnt_from_bmp_bgp.addr;
+                // The CE is the peer we learnt the path from
                 let ce = path_peer.id;
                 let link = Link {
                     pe: RouterId(IpAddr::try_from(&pe).unwrap()),
                     ce: RouterId(IpAddr::try_from(&ce).unwrap()),
                 };
 
-                match IpNet::try_from(&route.p).unwrap() {
+                // Based on the prefix we insert in the v4 or v6 RIB
+                match prefix {
                     IpNet::V4(prefix) => {
-                        println!("prefix {:#?}", prefix);
                         if let Some(links) = map.prefixes_v4.lookup_mut(&prefix) {
-                            println!("adding link {:#?}", link);
                             links.insert(link);
                         } else {
                             map.prefixes_v4.insert(prefix.clone(), HashSet::from([link]));
-                            println!("new link set {:#?}", map.prefixes_v4.lookup(&prefix));
                         }
                     }
                     IpNet::V6(prefix) => {
-                        println!("prefix {:#?}", prefix);
                         if let Some(links) = map.prefixes_v6.lookup_mut(&prefix) {
-                            println!("adding link {:#?}", link);
                             links.insert(link);
                         } else {
                             map.prefixes_v6.insert(prefix.clone(), HashSet::from([link]));
-                            println!("new link set {:#?}", map.prefixes_v6.lookup(&prefix));
                         }
                     }
                 };
@@ -194,7 +214,7 @@ pub unsafe fn prefix_link_discovery(peer: *mut bgp_peer, table: *const bgp_table
             }
         }
 
-        node = bgp_route_next(peer, node);
+        node = bgp_route_next(&mut reader, node);
     }
 
     map

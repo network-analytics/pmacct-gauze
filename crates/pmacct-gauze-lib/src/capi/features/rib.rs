@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 
 use crate::capi::features::prefix_tree::{LookupResult, NodeType, Prefix, PrefixTree};
@@ -14,13 +15,21 @@ pub trait Rib<Pfx, Value> {
     fn walk(&self, f: impl FnMut(&Pfx, &Value));
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct RibPrefixTree<Pfx, Value>
 where
     Pfx: Prefix + Hash,
 {
     tree: PrefixTree<Pfx>,
     map: HashMap<Pfx, Value>,
+}
+
+impl<Pfx: Prefix + Hash, Value: Debug> Debug for RibPrefixTree<Pfx, Value> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("RibPrefixTree");
+        debug.field("map", &self.map);
+        debug.finish()
+    }
 }
 
 impl<Pfx, Value> Rib<Pfx, Value> for RibPrefixTree<Pfx, Value>
