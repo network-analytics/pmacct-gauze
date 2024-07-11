@@ -85,7 +85,7 @@ pub fn group_pfx_of_same_link_set(prefix_link: PrefixLinksMap) -> Vec<Site> {
         let net = IpNet::V4(prefix.clone());
         let site = sites.iter_mut().find(|site| {
             // if we already know this link set then the prefix is part of the same site
-            site.links.eq(link_set)
+            link_set.is_subset(&site.links)
                 ||
                 // if this prefix is a subnet of a known prefix it is part of the same site
                 site.is_mspi(&net)
