@@ -12,6 +12,7 @@ use crate::cresult::CResult;
 pub mod open;
 pub mod parse;
 pub mod update;
+pub mod notification;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

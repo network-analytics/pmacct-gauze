@@ -1,15 +1,15 @@
 use std::cmp::max;
 use std::os::raw::c_char;
 
-use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_bgp_pkt::BgpMessage;
+use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::{bgp_peer, host_addr};
 
 use crate::capi::bgp::WrongBgpMessageTypeError;
 use crate::cresult::CResult;
-use crate::log::{pmacct_log, LogPriority};
+use crate::log::{LogPriority, pmacct_log};
 use crate::opaque::Opaque;
 
 pub type BgpOpenProcessResult = CResult<usize, WrongBgpMessageTypeError>;
@@ -62,7 +62,7 @@ pub extern "C" fn netgauze_bgp_process_open(
                     } else if recv {
                         1
                     } else {
-                        unreachable!() // TODO error
+                        0
                     };
 
                     peer.cap_add_paths.afi_max = max(afi.into(), peer.cap_add_paths.afi_max);
