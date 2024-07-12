@@ -7,8 +7,10 @@ use c_str_macro::c_str;
 use libc::c_char;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
-use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
+use netgauze_parse_utils::{ReadablePduWithOneInput, Span, WritablePdu};
 use nom::Offset;
+
+use pmacct_gauze_bindings::bgp_header;
 
 use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 use crate::cresult::CResult;
@@ -27,6 +29,7 @@ pub type BgpParseResult = CResult<ParsedBgp, BgpParseError>;
 #[repr(C)]
 pub struct ParsedBgp {
     read_bytes: u32,
+    pub header: bgp_header,
     pub message: *mut Opaque<BgpMessage>,
 }
 
@@ -54,6 +57,11 @@ pub extern "C" fn netgauze_bgp_parse_packet_with_context(
 
         return CResult::Ok(ParsedBgp {
             read_bytes,
+            header: bgp_header {
+                bgpo_marker: [0xFF; 16],
+                bgpo_len: msg.len() as u16,
+                bgpo_type: msg.get_type() as u8,
+            },
             message: make_rust_raw_box_pointer(Opaque::from(msg)),
         });
     }
