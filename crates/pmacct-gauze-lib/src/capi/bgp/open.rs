@@ -1,9 +1,9 @@
 use std::cmp::max;
 use std::os::raw::c_char;
 
-use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_bgp_pkt::iana::AS_TRANS;
 use netgauze_bgp_pkt::BgpMessage;
+use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::convert::TryConvertInto;
@@ -12,7 +12,7 @@ use pmacct_gauze_bindings::{as_t, bgp_peer, host_addr};
 use crate::capi::bgp::WrongBgpMessageTypeError;
 use crate::cresult::CResult;
 use crate::extensions::add_path::AddPathCapabilityValue;
-use crate::log::{pmacct_log, LogPriority};
+use crate::log::{LogPriority, pmacct_log};
 use crate::opaque::Opaque;
 
 #[repr(C)]
@@ -47,7 +47,7 @@ pub extern "C" fn netgauze_bgp_process_open(
     peer.id = host_addr::from(&open.bgp_id());
     peer.version = open.version(); // FIXME pmacct limits this to 4 only. same?
 
-    // TODO Router id check
+    // TODO pmacct duplicate router_id check needs to be done in pmacct still for live bgp
 
     peer.as_ = open.my_asn4(); // this is either the asn4 or the as,
     if peer.as_ == AS_TRANS as u32 || peer.as_ == 0 {
