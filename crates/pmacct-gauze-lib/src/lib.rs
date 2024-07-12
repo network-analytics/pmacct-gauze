@@ -19,12 +19,18 @@ pub mod cslice;
 /// Extension traits with helper functions for NetGauze types
 pub mod extensions;
 
+/// Module defining macros to reduce boilerplate code to write for the C-api
 #[macro_use]
 pub mod macros;
 
 /// Module handling pmacct-compatible logging from pmacct-gauze
 pub mod log;
+
+/// Module rendering types Opaque to C
 pub mod opaque;
+
+/// Module that defines a generic ContextCache which is a simple wrapper to a HashMap with some traits implemented
+pub mod context_cache;
 
 /// Shorthand for dropping a Box that was turned into a raw pointer
 #[inline]

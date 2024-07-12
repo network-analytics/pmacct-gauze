@@ -5,14 +5,14 @@ use std::slice;
 
 use c_str_macro::c_str;
 use libc::c_char;
-use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
 use netgauze_bgp_pkt::BgpMessage;
+use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
 use nom::Offset;
 
+use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 use crate::cresult::CResult;
 use crate::opaque::Opaque;
-use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -33,6 +33,13 @@ pub struct ParsedBgp {
 #[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_parse_packet(
+    buffer: *const c_char,
+    buffer_length: u32) -> BgpParseResult {
+    netgauze_bgp_parse_packet_with_context(buffer, buffer_length, &mut Default::default())
+}
+
+#[no_mangle]
+pub extern "C" fn netgauze_bgp_parse_packet_with_context(
     buffer: *const c_char,
     buffer_length: u32,
     bgp_parsing_context: *mut Opaque<BgpParsingContext>,
@@ -97,7 +104,7 @@ impl BgpParseError {
             BgpParseError::StringConversionError => c_str! {
                 "BgpParseError::StringConversionError"
             }
-            .as_ptr(),
+                .as_ptr(),
         }
     }
 }
