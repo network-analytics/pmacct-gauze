@@ -45,8 +45,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "FP_ZERO".into(),
             "IPPORT_RESERVED".into(),
         ]
-        .into_iter()
-        .collect(),
+            .into_iter()
+            .collect(),
     );
 
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));
@@ -67,6 +67,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .parse_callbacks(Box::new(ignored_macros))
         .parse_callbacks(name_mappings_cb)
+        .allowlist_file(format!("{header_location}/pmacct/src/pmacct.h"))
+        .allowlist_file(format!("{header_location}/pmacct/src/pmacct-defines.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp_logdump.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp.h"))

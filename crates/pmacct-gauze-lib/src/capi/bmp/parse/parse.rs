@@ -147,12 +147,12 @@ impl From<IpAddrWritingError> for BmpParseError {
 }
 
 #[no_mangle]
-pub extern "C" fn bmp_parse_error_str(error: BmpParseError) -> *const c_char {
+pub extern "C" fn netgauze_bmp_parse_error_str(error: BmpParseError) -> *const c_char {
     error.as_str_ptr()
 }
 
 #[no_mangle]
-pub extern "C" fn bmp_parse_result_free(value: BmpParseResult) {
+pub extern "C" fn netgauze_bmp_parse_result_free(value: BmpParseResult) {
     match value {
         CResult::Ok(parse_ok) => {
             drop_rust_raw_box(parse_ok.message);
