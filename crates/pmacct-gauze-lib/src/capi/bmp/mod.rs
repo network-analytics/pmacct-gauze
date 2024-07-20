@@ -3,8 +3,9 @@ use std::fmt::{Display, Formatter};
 use std::ptr;
 
 use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::iana::BmpMessageType;
+use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
+use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::{
@@ -175,4 +176,18 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
             .unwrap_or_else(timeval::default_zeroed),
         tstamp_arrival: timeval::now(),
     })
+}
+
+pub type BmpRouteMonitorUpdateResult = CResult<*const Opaque<BgpMessage>, WrongBmpMessageTypeError>;
+
+#[no_mangle]
+pub extern "C" fn netgauze_bmp_route_monitor_get_bgp_update(bmp_rm: *const Opaque<BmpMessageValue>) -> BmpRouteMonitorUpdateResult {
+    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
+
+    let bmp_rm = match bmp_value {
+        BmpMessageValue::RouteMonitoring(rm) => rm,
+        _ => return WrongBmpMessageTypeError(bmp_value.get_type().into()).into()
+    };
+
+    CResult::Ok(Opaque::const_from_ref(bmp_rm.update_message()))
 }

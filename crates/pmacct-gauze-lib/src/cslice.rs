@@ -2,9 +2,11 @@ use core::mem::size_of;
 use std::mem::ManuallyDrop;
 use std::ptr;
 
+// TODO consider adding OwnedSlice / Slice or CSlice<Owned/Borrowed>
+
 /// [`CSlice<T>`] represents a contiguous chunk of memory like an array.
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CSlice<T> {
     pub base_ptr: *mut T,
     pub stride: usize,

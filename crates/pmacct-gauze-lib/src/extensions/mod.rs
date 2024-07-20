@@ -6,3 +6,4 @@ pub mod context;
 pub mod information_tlv;
 pub mod ipaddr;
 pub mod rd;
+pub mod bgp_notification;

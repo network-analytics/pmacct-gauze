@@ -10,6 +10,14 @@ impl<T> Opaque<T> {
     pub fn value(self) -> T {
         self.0
     }
+
+    pub fn const_from_ref(some_ref: &T) -> *const Opaque<T> {
+        some_ref as *const T as *const Opaque<T>
+    }
+
+    pub fn mut_from_mut(some_ref: &mut T) -> *mut Opaque<T> {
+        some_ref as *mut T as *mut Opaque<T>
+    }
 }
 
 impl<T> From<T> for Opaque<T> {
