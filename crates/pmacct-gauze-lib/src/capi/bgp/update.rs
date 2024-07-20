@@ -22,7 +22,6 @@ use pmacct_gauze_bindings::{
 };
 
 use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
-use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
 use crate::cslice::RustFree;
@@ -122,49 +121,19 @@ impl Default for BgpParsedAttributes {
     }
 }
 
-pub type BgpUpdateResult = CResult<ParsedBgpUpdate, BgpUpdateError>;
-
-// TODO use netgauze Variant(#[from] OtherError) macros
-#[repr(C)]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum BgpUpdateError {
-    WrongBmpMessageType(WrongBmpMessageTypeError),
-    WrongBgpMessageType(WrongBgpMessageTypeError),
-}
-
-impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
-    fn from(value: BgpUpdateError) -> Self {
-        Self::Err(value)
-    }
-}
+pub type BgpUpdateResult = CResult<ParsedBgpUpdate, WrongBgpMessageTypeError>;
 
 // TODO allocate separate community structs to avoid use after free bc pmacct decides to free the given communities with skip_rib
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,
-    bmp_rm: *const Opaque<BmpMessageValue>,
+    bgp_msg: *const Opaque<BgpMessage>,
 ) -> BgpUpdateResult {
-    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
+    let bgp_msg = unsafe { bgp_msg.as_ref().unwrap().as_ref() };
 
-    let bmp_rm = match bmp_value {
-        BmpMessageValue::RouteMonitoring(rm) => rm,
-        _ => {
-            return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
-                bmp_value.get_type().into(),
-            ))
-                .into();
-        }
-    };
-
-    let bgp_msg = bmp_rm.update_message();
     let update = match bgp_msg {
         BgpMessage::Update(update) => update,
-        _ => {
-            return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
-                bgp_msg.get_type().into(),
-            ))
-                .into();
-        }
+        _ => return WrongBgpMessageTypeError(bgp_msg.get_type().into()).into()
     };
 
     let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
@@ -225,7 +194,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                         peer,
                         bytes.as_ptr() as *mut i8,
                         bytes.len(),
-                        !peer.read().cap_4as.is_null() as i32,
+                        i32::from(peer.read().cap_4as.used),
                     )
                 };
 
@@ -248,7 +217,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                         peer,
                         bytes.as_ptr() as *mut i8,
                         bytes.len(),
-                        !peer.read().cap_4as.is_null() as i32,
+                        peer.read().cap_4as.used as i32,
                     )
                 };
 

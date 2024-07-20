@@ -55,7 +55,7 @@ pub extern "C" fn netgauze_bmp_peer_up_get_open_rx(
     let open = peer_up.received_message();
     // TODO change this when NetGauze stores a BgpOpenMessage instead of a BgpMessage
     CResult::Ok(BmpPeerUpOpen {
-        message: open as *const BgpMessage as *const Opaque<BgpMessage>,
+        message: Opaque::const_from_ref(open),
         message_size: open.len(),
     })
 }
