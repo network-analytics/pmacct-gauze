@@ -14,16 +14,16 @@ use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 
 use pmacct_gauze_bindings::{
     AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF,
-    BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer,
+    BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, bgp_peer,
     community, community_add_val, community_intern, community_new, ecommunity, ecommunity_add_val,
     ecommunity_intern, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_intern,
     lcommunity_new, lcommunity_val, path_id_t, prefix,
-    rd_as, rd_t, safi_t, SAFI_UNICAST,
+    rd_t, safi_t, SAFI_UNICAST,
 };
 
 use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
 use crate::cresult::CResult;
-use crate::cslice::CSlice;
+use crate::cslice::OwnedSlice;
 use crate::cslice::RustFree;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
@@ -36,7 +36,7 @@ free_cslice_t!(u8);
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
     bmp_rm: *const Opaque<BmpMessageValue>,
-) -> CSlice<u8> {
+) -> OwnedSlice<u8> {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
 
     let bmp_rm = match bmp_rm.as_ref() {
@@ -53,15 +53,9 @@ pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
     };
 
     let buf = if let Ok(_) = written {
-        unsafe { CSlice::from_vec(buf) }
+        unsafe { OwnedSlice::from_vec(buf) }
     } else {
-        CSlice {
-            base_ptr: ptr::null_mut(),
-            stride: 0,
-            end_ptr: ptr::null_mut(),
-            len: 0,
-            cap: 0,
-        }
+        OwnedSlice::dummy()
     };
 
     buf
@@ -70,7 +64,7 @@ pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
 #[repr(C)]
 #[derive(Debug)]
 pub struct ParsedBgpUpdate {
-    pub packets: CSlice<ProcessPacket>,
+    pub packets: OwnedSlice<ProcessPacket>,
     pub update_count: usize,
 }
 
@@ -141,35 +135,8 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
     let mut mp_reach = None;
     let mut mp_unreach = None;
 
-    let mut attr = bgp_attr {
-        aspath: ptr::null_mut(),
-        community: ptr::null_mut(),
-        ecommunity: ptr::null_mut(),
-        lcommunity: ptr::null_mut(),
-        refcnt: 0, // TODO see how this works in pmacct (prob. intern/unintern)
-        rpki_maxlen: 0,
-        nexthop: in_addr::default(),
-        mp_nexthop: host_addr::default(),
-        med: 0,        // uninit protected with bitmap
-        local_pref: 0, // uninit protected with bitmap
-        origin: BGP_ORIGIN_UNKNOWN as u8,
-        bitmap: 0,
-    };
-
-    let mut attr_extra = bgp_attr_extra {
-        bitmap: 0,
-        rd: rd_as {
-            type_: 0,
-            as_: 0,
-            val: 0,
-        },
-        label: [0, 0, 0],
-        path_id: 0,
-        aigp: 0,
-        psid_li: 0, // TODO not supported in netgauze?
-        otc: 0,
-    };
-
+    let mut attr: bgp_attr = unsafe { std::mem::zeroed() };
+    let mut attr_extra: bgp_attr_extra = unsafe { std::mem::zeroed() };
     let mut as_path = ptr::null_mut();
     let mut as4_path = ptr::null_mut();
 
@@ -681,7 +648,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 .iter()
                 .filter(|x| x.update_type == BGP_NLRI_UPDATE)
                 .count(),
-            packets: CSlice::from_vec(packets),
+            packets: OwnedSlice::from_vec(packets),
         })
     }
 }
