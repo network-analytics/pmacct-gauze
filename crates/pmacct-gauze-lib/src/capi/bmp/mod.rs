@@ -4,8 +4,8 @@ use std::ptr;
 
 use libc::{AF_INET, AF_INET6};
 use netgauze_bgp_pkt::BgpMessage;
-use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
 use netgauze_bmp_pkt::iana::BmpMessageType;
+use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::{
@@ -13,7 +13,7 @@ use pmacct_gauze_bindings::{
 };
 
 use crate::cresult::CResult;
-use crate::cslice::CSlice;
+use crate::cslice::OwnedSlice;
 pub use crate::cslice::RustFree;
 use crate::extensions::bmp_message::{ExtendBmpMessage, ExtendBmpPeerHeader};
 use crate::extensions::information_tlv::TlvExtension;
@@ -59,7 +59,7 @@ impl<T> From<WrongBmpMessageTypeError> for CResult<T, WrongBmpMessageTypeError> 
 }
 
 /// The `CSlice<bmp_log_tlv>` must be manually freed with [CSlice_free_bmp_log_tlv]
-pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, WrongBmpMessageTypeError>;
+pub type BmpTlvListResult = CResult<OwnedSlice<bmp_log_tlv>, WrongBmpMessageTypeError>;
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
@@ -114,7 +114,7 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
         _ => return WrongBmpMessageTypeError(bmp_value.get_type().into()).into(),
     };
 
-    let c_slice = CSlice::from_vec(tlvs);
+    let c_slice = OwnedSlice::from_vec(tlvs);
 
     CResult::Ok(c_slice)
 }

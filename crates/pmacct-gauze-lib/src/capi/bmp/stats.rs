@@ -4,14 +4,14 @@ use pmacct_gauze_bindings::bmp_log_stats;
 
 use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
-use crate::cslice::CSlice;
+use crate::cslice::OwnedSlice;
 use crate::cslice::RustFree;
 use crate::extensions::bmp_statistics::ExtendBmpStatistics;
 use crate::free_cslice_t;
 use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
 
-pub type BmpStatsResult = CResult<CSlice<bmp_log_stats>, WrongBmpMessageTypeError>;
+pub type BmpStatsResult = CResult<OwnedSlice<bmp_log_stats>, WrongBmpMessageTypeError>;
 
 free_cslice_t!(bmp_log_stats);
 
@@ -85,6 +85,6 @@ pub extern "C" fn netgauze_bmp_stats_get_stats(
         });
     }
 
-    let slice = CSlice::from_vec(result);
+    let slice = OwnedSlice::from_vec(result);
     CResult::Ok(slice)
 }

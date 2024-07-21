@@ -1,6 +1,6 @@
 pub use paste;
 
-/// Generate a function called `CSlice_free_T` for C to free a [`crate::cslice::CSlice<T>`] for type `T`.
+/// Generate a function called `CSlice_free_T` for C to free a [`crate::cslice::OwnedSlice<T>`] for type `T`.
 ///
 /// This variant of the macro automatically implements [crate::cslice::RustFree] for the type `T`
 /// The automatic implementation for [crate::cslice::RustFree::rust_free] on `T` just drops the value
@@ -28,8 +28,8 @@ macro_rules! free_cslice_t {
     ($typ:ty, $name:ty) => {
         $crate::macros::paste::paste! {
             #[no_mangle]
-            pub extern "C" fn  [< CSlice_free_ $name >] (slice: CSlice<$typ>) {
-                CSlice::<$typ>::rust_free(slice);
+            pub extern "C" fn  [< CSlice_free_ $name >] (slice: OwnedSlice<$typ>) {
+                OwnedSlice::<$typ>::rust_free(slice);
             }
         }
 
@@ -44,7 +44,7 @@ macro_rules! free_cslice_t {
 }
 pub use free_cslice_t;
 
-/// Generate a function called `CSlice_free_T` for C to free a [`crate::cslice::CSlice<T>`] for type `T`
+/// Generate a function called `CSlice_free_T` for C to free a [`crate::cslice::OwnedSlice<T>`] for type `T`
 ///
 /// This macro work exactly as the macro [free_cslice_t] works
 /// without implementing [crate::cslice::RustFree] automatically for `T`.
@@ -55,7 +55,7 @@ pub use free_cslice_t;
 /// ```
 /// use pmacct_gauze_lib::free_cslice_t_with_item_free;
 /// use pmacct_gauze_lib::cslice::RustFree;
-/// use pmacct_gauze_lib::cslice::CSlice;
+/// use pmacct_gauze_lib::cslice::OwnedSlice;
 /// struct Struct;
 ///
 /// // This type is needed to be able to implement RustFree as we can't impl a foreign trait on arbitrary types
@@ -81,8 +81,8 @@ macro_rules! free_cslice_t_with_item_free {
     ($typ:ty, $name:ty) => {
         $crate::macros::paste::paste! {
             #[no_mangle]
-            pub extern "C" fn  [< CSlice_free_ $name >] (slice: CSlice<$typ>) {
-                CSlice :: <$typ> :: rust_free(slice);
+            pub extern "C" fn  [< CSlice_free_ $name >] (slice: OwnedSlice<$typ>) {
+                OwnedSlice :: <$typ> :: rust_free(slice);
             }
         }
     };
@@ -102,7 +102,7 @@ pub use free_cslice_t_with_item_free;
 /// ```
 /// use pmacct_gauze_lib::{make_default};
 /// use pmacct_gauze_lib::cslice::RustFree;
-/// use pmacct_gauze_lib::cslice::CSlice;
+/// use pmacct_gauze_lib::cslice::OwnedSlice;
 ///
 /// #[derive(Default)]
 /// struct Data;
@@ -141,7 +141,7 @@ pub use make_default;
 /// ```
 /// use pmacct_gauze_lib::{free_rust_raw_box};
 /// use pmacct_gauze_lib::cslice::RustFree;
-/// use pmacct_gauze_lib::cslice::CSlice;
+/// use pmacct_gauze_lib::cslice::OwnedSlice;
 /// struct Data;
 /// struct GenericStruct<S> {
 ///     inner: S,
