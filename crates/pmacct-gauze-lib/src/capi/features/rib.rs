@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 
-use crate::capi::features::prefix_tree::{LookupResult, NodeType, Prefix};
-use crate::capi::features::prefix_tree::classic::{ClosestMatch, PrefixTree};
+use crate::capi::features::prefix_tree::{NodeType, Prefix};
+use crate::capi::features::prefix_tree::classic::PrefixTree;
 
 pub trait Rib<Pfx, Value> {
     fn insert(&mut self, prefix: Pfx, value: Value);
@@ -56,14 +56,7 @@ where
     }
 
     fn longest_prefix_match_mut(&mut self, prefix: &Pfx) -> Option<(Pfx, &mut Value)> {
-        let node = match self.tree.lookup(prefix) {
-            LookupResult::Empty => return None,
-            LookupResult::ClosestMatch(ClosestMatch { node, .. }) => match node.clone().borrow().node_type {
-                NodeType::Entry => node,
-                NodeType::Structural => return None
-            },
-            LookupResult::Found(matched) => matched
-        };
+        let node = self.tree.longest_prefix_match(prefix)?;
 
         let prefix = node.borrow().prefix.clone();
         let value = self.map.get_mut(&prefix).unwrap();
@@ -71,14 +64,7 @@ where
     }
 
     fn longest_prefix_match(&self, prefix: &Pfx) -> Option<(Pfx, &Value)> {
-        let node = match self.tree.lookup(prefix) {
-            LookupResult::Empty => return None,
-            LookupResult::ClosestMatch(ClosestMatch { node, .. }) => match node.clone().borrow().node_type {
-                NodeType::Entry => node,
-                NodeType::Structural => return None
-            },
-            LookupResult::Found(matched) => matched
-        };
+        let node = self.tree.longest_prefix_match(prefix)?;
 
         let prefix = node.borrow().prefix.clone();
         let value = self.map.get(&prefix).unwrap();
