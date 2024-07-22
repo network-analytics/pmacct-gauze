@@ -395,6 +395,20 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
             }
         }
     }
+
+    pub fn longest_prefix_match(&self, prefix: &Pfx) -> Option<TreeRef<Pfx>> {
+        match self.lookup(prefix) {
+            LookupResult::Empty => None,
+            LookupResult::ClosestMatch(ClosestMatch { node, branch }) => match node.clone().borrow().node_type {
+                Entry => match branch {
+                    None => None,
+                    Some(_) => Some(node)
+                },
+                Structural => None
+            },
+            LookupResult::Found(matched) => Some(matched)
+        }
+    }
 }
 
 impl<Pfx> Drop for PrefixTree<Pfx> {
