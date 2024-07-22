@@ -1,125 +1,43 @@
-#![feature(let_chains)]
-
 use std::cell::RefCell;
-use std::cmp::{Ordering, PartialEq};
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Formatter};
-use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use ipnet::{Ipv4Net, Ipv6Net};
-
-use crate::capi::features::prefix_tree::NodeType::*;
-
-pub trait Prefix: Ord + PartialOrd + PartialEq + Eq + Debug + Clone {
-    fn common_route(&self, other: &Self) -> Self;
-    fn is_left_of(&self, parent: &Self) -> bool;
-    fn contains(&self, child: &Self) -> bool;
-    fn max_prefix_len(&self) -> u8;
-    fn prefix_len(&self) -> u8;
-}
-
-impl Prefix for Ipv4Net {
-    fn common_route(&self, other: &Self) -> Self {
-        let first_addr = self.network().to_bits();
-        let second_addr = other.network().to_bits();
-
-        let common_bits = (first_addr ^ second_addr).leading_zeros();
-        let common_mask = u32::MAX << (u32::BITS - common_bits);
-
-        Ipv4Net::new(
-            Ipv4Addr::from_bits(first_addr & common_mask),
-            common_bits as u8,
-        ).unwrap()
-    }
-
-    fn is_left_of(&self, parent: &Self) -> bool {
-        let prefix_max_len = parent.max_prefix_len();
-        let parent_len = parent.prefix_len();
-        // shift to get next bit of the child network address
-        // the next bit is the bit in the child following the parent network address
-        let shift = prefix_max_len - parent_len - 1;
-
-        // if the next bit is one the child goes to the left (we could do the opposite)
-        (self.network().to_bits() >> shift) & 1 == 1
-    }
-
-    fn contains(&self, child: &Self) -> bool {
-        Ipv4Net::contains(self, child)
-    }
-
-    fn max_prefix_len(&self) -> u8 {
-        self.max_prefix_len()
-    }
-
-    fn prefix_len(&self) -> u8 {
-        self.prefix_len()
-    }
-}
-
-impl Prefix for Ipv6Net {
-    fn common_route(&self, other: &Self) -> Self {
-        let first_addr = self.network().to_bits();
-        let second_addr = other.network().to_bits();
-
-        let common_bits = (first_addr ^ second_addr).leading_zeros();
-        let common_mask = u128::MAX << (u128::BITS - common_bits);
-
-        Ipv6Net::new(
-            Ipv6Addr::from_bits(first_addr & common_mask),
-            common_bits as u8,
-        ).unwrap()
-    }
-
-    fn is_left_of(&self, parent: &Self) -> bool {
-        let prefix_max_len = parent.max_prefix_len();
-        let parent_len = parent.prefix_len();
-        // shift to get next bit of the child network address
-        // the next bit is the bit in the child following the parent network address
-        let shift = prefix_max_len - parent_len - 1;
-
-        // if the next bit is one the child goes to the left (we could do the opposite)
-        (self.network().to_bits() >> shift) & 1 == 1
-    }
-
-    fn contains(&self, child: &Self) -> bool {
-        Ipv6Net::contains(self, child)
-    }
-
-    fn max_prefix_len(&self) -> u8 {
-        Ipv6Net::max_prefix_len(self)
-    }
-
-    fn prefix_len(&self) -> u8 {
-        Ipv6Net::prefix_len(self)
-    }
-}
+use crate::capi::features::prefix_tree::{Branch, compute_branch, LookupResult, NodeType, Prefix};
+use crate::capi::features::prefix_tree::NodeType::{Entry, Structural};
 
 #[derive(Default, Clone)]
 pub struct PrefixTree<Pfx>
-where
-    Pfx: Prefix,
 {
     top: Option<TreeRef<Pfx>>,
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub struct TreeRef<Pfx: Prefix>(Rc<RefCell<Node<Pfx>>>);
+#[derive(Ord, PartialOrd, Eq, PartialEq)]
+pub struct TreeRef<Pfx>(Rc<RefCell<Node<Pfx>>>);
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-pub enum NodeType {
-    Entry,
-    Structural,
+impl<Pfx> Clone for TreeRef<Pfx> {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
 }
 
 #[derive(Clone)]
-pub struct Node<Pfx: Prefix> {
+pub struct Node<Pfx>
+{
     pub(crate) node_type: NodeType,
     pub(crate) prefix: Pfx,
     left: Option<TreeRef<Pfx>>,
     right: Option<TreeRef<Pfx>>,
     parent: Option<TreeRef<Pfx>>,
+}
+
+
+#[derive(Ord, PartialOrd, Eq, PartialEq)]
+pub struct ClosestMatch<Pfx> {
+    pub node: TreeRef<Pfx>,
+    pub branch: Option<Branch>,
 }
 
 impl<Pfx: Prefix> Debug for PrefixTree<Pfx> {
@@ -130,16 +48,14 @@ impl<Pfx: Prefix> Debug for PrefixTree<Pfx> {
         });
 
         let mut debug = f.debug_struct("PrefixTree");
-        debug.field("top", &self.top);
-        debug.field("nodes", &nodes);
+        debug.field("top", &self.top.as_ref().unwrap().borrow());
+        debug.field("nodes", &nodes.iter().map(|tree_ref| tree_ref.borrow()).collect::<Vec<_>>());
         debug.finish()
     }
 }
 
 
 impl<Pfx> TreeRef<Pfx>
-where
-    Pfx: Prefix,
 {
     pub fn new(
         node_type: NodeType,
@@ -159,7 +75,7 @@ where
         TreeRef(Rc::new(RefCell::new(node)))
     }
 }
-impl<Pfx: Prefix> Deref for TreeRef<Pfx> {
+impl<Pfx> Deref for TreeRef<Pfx> {
     type Target = Rc<RefCell<Node<Pfx>>>;
 
     fn deref(&self) -> &Self::Target {
@@ -167,41 +83,35 @@ impl<Pfx: Prefix> Deref for TreeRef<Pfx> {
     }
 }
 
-impl<Pfx: Prefix> DerefMut for TreeRef<Pfx> {
+impl<Pfx> DerefMut for TreeRef<Pfx> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
-impl<Pfx> Eq for Node<Pfx> where Pfx: Prefix {}
+impl<Pfx: Eq> Eq for Node<Pfx> {}
 
-impl<Pfx> PartialEq<Self> for Node<Pfx>
-where
-    Pfx: Prefix,
+impl<Pfx: PartialEq> PartialEq<Self> for Node<Pfx>
 {
     fn eq(&self, other: &Self) -> bool {
         self.prefix.eq(&other.prefix)
     }
 }
 
-impl<Pfx> PartialOrd<Self> for Node<Pfx>
-where
-    Pfx: Prefix,
+impl<Pfx: PartialOrd> PartialOrd<Self> for Node<Pfx>
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.prefix.partial_cmp(&other.prefix)
     }
 }
 
-impl<Pfx> Ord for Node<Pfx>
-where
-    Pfx: Prefix,
+impl<Pfx: Ord> Ord for Node<Pfx>
 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.prefix.cmp(&other.prefix)
     }
 }
 
-impl<Pfx: Prefix> Debug for Node<Pfx> {
+impl<Pfx: Debug + Clone> Debug for Node<Pfx> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("Node");
         debug.field("type", &self.node_type);
@@ -214,19 +124,12 @@ impl<Pfx: Prefix> Debug for Node<Pfx> {
     }
 }
 
-pub fn compute_branch<Pfx: Prefix>(parent: &Pfx, child: &Pfx) -> Branch {
-    match child.is_left_of(parent) {
-        true => Branch::Left,
-        false => Branch::Right
-    }
-}
-
 pub fn common_node<Pfx: Prefix>(node: &TreeRef<Pfx>, route: &Pfx) -> TreeRef<Pfx> {
     let common_route = (&node.borrow().prefix).common_route(route);
     TreeRef::new(Structural, common_route, None, None, node.borrow().parent.clone())
 }
 
-impl<Pfx: Prefix> Node<Pfx> {
+impl<Pfx> Node<Pfx> {
     pub fn set_right_node(&mut self, child: Option<TreeRef<Pfx>>) {
         self.right = child
     }
@@ -242,16 +145,6 @@ impl<Pfx: Prefix> Node<Pfx> {
         }
     }
 
-    pub fn has_direct_child(&self, child: TreeRef<Pfx>) -> Option<Branch> {
-        return if let Some(left) = &self.left && child.eq(left) {
-            Some(Branch::Left)
-        } else if let Some(right) = &self.right && child.eq(right) {
-            Some(Branch::Right)
-        } else {
-            None
-        };
-    }
-
     pub fn get_branch(&self, branch: Branch) -> Option<TreeRef<Pfx>> {
         match branch {
             Branch::Left => self.left.clone(),
@@ -264,6 +157,18 @@ impl<Pfx: Prefix> Node<Pfx> {
         if let Some(_) = &self.left { result += 1 }
         if let Some(_) = &self.right { result += 1 }
         result
+    }
+}
+
+impl<Pfx: Eq> Node<Pfx> {
+    pub fn has_direct_child(&self, child: TreeRef<Pfx>) -> Option<Branch> {
+        return if let Some(left) = &self.left && child.eq(left) {
+            Some(Branch::Left)
+        } else if let Some(right) = &self.right && child.eq(right) {
+            Some(Branch::Right)
+        } else {
+            None
+        };
     }
 }
 
@@ -282,32 +187,7 @@ pub fn insert_parent_above<Pfx: Prefix>(parent: TreeRef<Pfx>, child: TreeRef<Pfx
     }
 }
 
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-pub enum Branch {
-    Left,
-    Right,
-}
-
-impl Branch {
-    pub fn other(self) -> Self {
-        match self {
-            Branch::Left => Branch::Right,
-            Branch::Right => Branch::Left
-        }
-    }
-}
-
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
-pub enum LookupResult<Pfx: Prefix> {
-    Empty,
-    ClosestMatch {
-        node: TreeRef<Pfx>,
-        branch: Option<Branch>,
-    },
-    Found(TreeRef<Pfx>),
-}
-
-impl<Pfx: Prefix> PrefixTree<Pfx> {
+impl<Pfx> PrefixTree<Pfx> {
     pub fn set_top(&mut self, top: Option<TreeRef<Pfx>>) {
         self.top = top;
     }
@@ -330,8 +210,10 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
             callback(node);
         }
     }
+}
 
-    pub fn lookup(&self, prefix: &Pfx) -> LookupResult<Pfx> {
+impl<Pfx: Prefix> PrefixTree<Pfx> {
+    pub fn lookup(&self, prefix: &Pfx) -> LookupResult<ClosestMatch<Pfx>, TreeRef<Pfx>> {
         if let None = self.top {
             return LookupResult::Empty;
         };
@@ -353,16 +235,16 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
                 };
 
                 match branch_value {
-                    None => return LookupResult::ClosestMatch { node: root.clone(), branch: Some(branch) },
+                    None => return LookupResult::ClosestMatch(ClosestMatch { node: root.clone(), branch: Some(branch) }),
                     Some(new_root) => new_root.clone()
                 }
             };
         }
 
-        LookupResult::ClosestMatch {
+        LookupResult::ClosestMatch(ClosestMatch {
             node: root,
             branch: None,
-        }
+        })
     }
 
     // TODO check if changing the common_node algorithm to only count bits up to prefix.prefix_len() is better than checking if prefix.contains
@@ -390,7 +272,7 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
             }
 
             // Use the closest match after lookup
-            LookupResult::ClosestMatch { node, branch } => {
+            LookupResult::ClosestMatch(ClosestMatch { node, branch }) => {
                 match branch {
                     // The prefix we looked up is supposed to be on branch 'branch' of our 'node'
                     Some(branch) => {
@@ -437,7 +319,6 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
         };
     }
 
-    // FIXME ensure that we destroy tree by removing the parent of each Node we let go of
     pub fn delete(&mut self, prefix: &Pfx) {
         let node = match self.lookup(prefix) {
             // If we do not find the exact prefix we have nothing to remove
@@ -483,6 +364,7 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
         let branch = parent.borrow().has_direct_child(node).unwrap();
         parent.borrow_mut().set_branch(branch, child.clone());
 
+
         //              grandparent
         //             /            \
         //       parent               some_other_node
@@ -515,7 +397,7 @@ impl<Pfx: Prefix> PrefixTree<Pfx> {
     }
 }
 
-impl<Pfx: Prefix> Drop for PrefixTree<Pfx> {
+impl<Pfx> Drop for PrefixTree<Pfx> {
     fn drop(&mut self) {
         self.walk(|node| {
             node.borrow_mut().parent = None
@@ -529,7 +411,7 @@ mod tests {
 
     use ipnet::Ipv4Net;
 
-    use crate::capi::features::prefix_tree::PrefixTree;
+    use crate::capi::features::prefix_tree::classic::PrefixTree;
 
     #[test]
     pub fn test_radix() {
