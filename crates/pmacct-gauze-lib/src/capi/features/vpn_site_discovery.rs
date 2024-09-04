@@ -26,7 +26,7 @@ pub extern "C" fn vsd_find_sites(bmp_peer: *const bmp_peer, bmp_table: *const bg
     };
     println!("prefix link = {:#?}", prefix_link);
 
-    let sites = group_pfx_of_same_link_set(prefix_link);
+    let mut sites = group_pfx_of_same_link_set(prefix_link);
     println!("sites = {:#?}", sites);
 }
 
@@ -35,9 +35,10 @@ pub extern "C" fn vsd_find_sites_comms(bmp_peer: *const bmp_peer, bmp_table: *co
     let mut sites = HashMap::<Community, Site>::new();
     let bms = unsafe { &*bgp_select_misc_db((*bmp_peer).self_.type_) };
     let comm_vpn_site_tag_mask = 3033 << 16;
+    let vpn_filter = None;
 
     unsafe {
-        walk_table(bms, &*bmp_table, None, |prefix, info| {
+        walk_table(bms, &*bmp_table, vpn_filter, |prefix, info| {
             if let Some(attr) = info.attr.as_ref()
                 && let Some(comms) = attr.community.as_ref() {
                 let comms = slice::from_raw_parts(comms.val, comms.size as usize);
@@ -47,7 +48,11 @@ pub extern "C" fn vsd_find_sites_comms(bmp_peer: *const bmp_peer, bmp_table: *co
                     if comm & comm_vpn_site_tag_mask == comm_vpn_site_tag_mask {
                         let site = sites.entry(Community::new(comm)).or_insert(Default::default());
                         site.links.insert(make_link(info));
-                        site.insert(prefix)
+                        site.insert(prefix);
+                        site.metadata.insert(SiteMetadata::SiteCommunity(Community::new(comm)));
+                        if let Some(vpn_filter) = vpn_filter {
+                            site.metadata.insert(SiteMetadata::VpnCommunity(vpn_filter));
+                        }
                     }
                 }
             }
@@ -66,19 +71,27 @@ pub struct Link {
     ce: RouterId,
 }
 
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+pub enum SiteMetadata {
+    SiteCommunity(Community),
+    VpnCommunity(Community),
+}
+
 #[derive(Debug, Default)]
 pub struct Site {
     links: HashSet<Link>,
     prefixes_v4: RibPrefixTree<Ipv4Net, ()>,
     prefixes_v6: RibPrefixTree<Ipv6Net, ()>,
+    metadata: HashSet<SiteMetadata>,
 }
 
 impl Site {
-    pub fn new(links: HashSet<Link>, prefixes: Option<Vec<IpNet>>) -> Self {
+    pub fn new(links: HashSet<Link>, prefixes: Option<Vec<IpNet>>, tags: Option<Vec<SiteMetadata>>) -> Self {
         let mut new = Self {
             links,
             prefixes_v4: Default::default(),
             prefixes_v6: Default::default(),
+            metadata: tags.map_or_else(Default::default, HashSet::from_iter),
         };
 
         if let Some(vec) = prefixes {
@@ -128,7 +141,7 @@ pub fn group_pfx_of_same_link_set(prefix_link: PrefixLinksMap) -> Vec<Site> {
         if let Some(site) = site {
             site.prefixes_v4.insert(prefix.clone(), ());
         } else {
-            sites.push(Site::new(link_set.clone(), Some(vec![net])));
+            sites.push(Site::new(link_set.clone(), Some(vec![net]), None));
         }
     });
 
@@ -146,7 +159,7 @@ pub fn group_pfx_of_same_link_set(prefix_link: PrefixLinksMap) -> Vec<Site> {
         if let Some(site) = site {
             site.prefixes_v6.insert(prefix.clone(), ());
         } else {
-            sites.push(Site::new(link_set.clone(), Some(vec![net])));
+            sites.push(Site::new(link_set.clone(), Some(vec![net]), None));
         }
     });
     sites
