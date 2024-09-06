@@ -1,5 +1,3 @@
-use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
-use bindgen_bridge::import::{NameMappings, NameMappingsCallback};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::env;
@@ -8,6 +6,9 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
+use bindgen_bridge::import::{NameMappings, NameMappingsCallback};
 
 #[derive(Debug)]
 struct IgnoreMacros(HashSet<String>);
@@ -43,8 +44,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "FP_ZERO".into(),
             "IPPORT_RESERVED".into(),
         ]
-        .into_iter()
-        .collect(),
+            .into_iter()
+            .collect(),
     );
 
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));

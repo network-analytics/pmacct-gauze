@@ -16,7 +16,7 @@ pub struct CSlice<T> {
 /// that are not tracked anymore ([Box::into_raw], [Vec::into_raw]) or need
 /// special treatment (a struct containing a raw [ptr] for example).
 ///
-/// We do not use drop because it is implemented by default for all types
+/// We do not use drop because it is implemented by default for all types,
 /// and we want to make sure we never forget to implement [RustFree]
 pub trait RustFree {
     fn rust_free(self);

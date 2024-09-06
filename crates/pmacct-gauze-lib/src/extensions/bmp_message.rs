@@ -1,6 +1,6 @@
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, BmpPeerType, PeerHeader};
 
-use pmacct_gauze_bindings::bmp_peer_hdr;
+use pmacct_gauze_bindings::{bmp_peer_hdr, BMP_RIB_ADJ_RIB_IN_POST, BMP_RIB_ADJ_RIB_IN_PRE, BMP_RIB_ADJ_RIB_OUT_PRE, BMP_RIB_LOC_RIB};
 
 use crate::capi::bmp::parse::BmpParseError;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
@@ -83,6 +83,28 @@ pub trait ExtendBmpPeerHeader {
     fn is_out(&self) -> Option<bool>;
     fn is_filtered(&self) -> Option<bool>;
     fn is_loc(&self) -> bool;
+    fn rib_type(&self) -> Option<BmpRibType>;
+}
+
+// That will go in Netgauze
+pub enum BmpRibType {
+    AdjRibInPrePolicy,
+    AdjRibInPostPolicy,
+    LocalRib,
+    AdjRibOutPrePolicy,
+    AdjRibOutPostPolicy,
+}
+
+impl From<BmpRibType> for u8 {
+    fn from(value: BmpRibType) -> Self {
+        match value {
+            BmpRibType::AdjRibInPrePolicy => BMP_RIB_ADJ_RIB_IN_PRE as u8,
+            BmpRibType::AdjRibInPostPolicy => BMP_RIB_ADJ_RIB_IN_POST as u8,
+            BmpRibType::LocalRib => BMP_RIB_LOC_RIB as u8,
+            BmpRibType::AdjRibOutPrePolicy => BMP_RIB_ADJ_RIB_OUT_PRE as u8,
+            BmpRibType::AdjRibOutPostPolicy => BMP_RIB_ADJ_RIB_IN_POST as u8
+        }
+    }
 }
 
 impl ExtendBmpPeerHeader for PeerHeader {
@@ -140,5 +162,25 @@ impl ExtendBmpPeerHeader for PeerHeader {
 
     fn is_loc(&self) -> bool {
         matches!(self.peer_type(), BmpPeerType::LocRibInstancePeer { .. })
+    }
+
+    fn rib_type(&self) -> Option<BmpRibType> {
+        if self.is_loc() {
+            return Some(BmpRibType::LocalRib);
+        }
+
+        let post = if let Some(post) = self.is_post() {
+            post
+        } else {
+            return None;
+        };
+
+        match (self.is_out(), post) {
+            (Some(false), false) => Some(BmpRibType::AdjRibInPrePolicy),
+            (Some(false), true) => Some(BmpRibType::AdjRibInPostPolicy),
+            (Some(true), false) => Some(BmpRibType::AdjRibOutPrePolicy),
+            (Some(true), true) => Some(BmpRibType::AdjRibOutPostPolicy),
+            (None, _) => None
+        }
     }
 }

@@ -13,7 +13,6 @@ impl<T, E> FromResidual for CResult<T, E> {
     fn from_residual(residual: <Self as Try>::Residual) -> Self {
         match residual {
             Err(err) => CResult::Err(err),
-            _ => unreachable!("residual should always be the error"),
         }
     }
 }

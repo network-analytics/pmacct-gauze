@@ -1,9 +1,10 @@
-#![feature(ip_bits)]
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(improper_ctypes)]
 #![allow(dead_code)]
+
+pub use bindings::*;
 
 pub mod convert;
 pub mod print;
@@ -13,4 +14,3 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-pub use bindings::*;

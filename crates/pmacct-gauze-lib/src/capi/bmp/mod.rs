@@ -3,8 +3,8 @@ use std::fmt::{Display, Formatter};
 use std::ptr;
 
 use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
+use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::{bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t};
@@ -153,6 +153,7 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
             is_filtered: u_int8_t::from(peer_hdr.is_filtered().unwrap_or(false)),
             is_out: u_int8_t::from(peer_hdr.is_out().unwrap_or(false)),
             is_loc: u_int8_t::from(peer_hdr.is_loc()),
+            rib_type: peer_hdr.rib_type().map(u8::from).unwrap_or(0),
             rd: peer_hdr
                 .rd()
                 .map(|rd| {

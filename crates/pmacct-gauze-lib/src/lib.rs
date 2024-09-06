@@ -1,6 +1,5 @@
 #![feature(try_trait_v2)]
 #![feature(vec_into_raw_parts)]
-#![feature(ip_bits)]
 
 // TODO add documentation to specify which *mut pointers are consumed or not
 // TODO add testing that validates return values using C functions for conversions
