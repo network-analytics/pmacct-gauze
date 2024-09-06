@@ -3,8 +3,8 @@ use std::fmt::{Display, Formatter};
 use std::ptr;
 
 use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
+use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::{bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t};
