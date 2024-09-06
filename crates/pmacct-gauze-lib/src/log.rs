@@ -1,6 +1,8 @@
-use libc::{LOG_ALERT, LOG_CRIT, LOG_DEBUG, LOG_EMERG, LOG_ERR, LOG_INFO, LOG_NOTICE, LOG_WARNING};
-use pmacct_gauze_bindings::Log;
 use std::ffi::{c_char, c_short, CString};
+
+use libc::{LOG_ALERT, LOG_CRIT, LOG_DEBUG, LOG_EMERG, LOG_ERR, LOG_INFO, LOG_NOTICE, LOG_WARNING};
+
+use pmacct_gauze_bindings::Log;
 
 #[repr(u8)]
 pub enum LogPriority {
@@ -14,6 +16,7 @@ pub enum LogPriority {
     Debug = LOG_DEBUG as u8,
 }
 
+/// Log a message using the log system of pmacct
 pub fn pmacct_log(prio: LogPriority, message: &str) {
     unsafe {
         if let Ok(str) = CString::new(message) {

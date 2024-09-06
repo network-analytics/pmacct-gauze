@@ -29,11 +29,13 @@ pub mod macros;
 pub mod log;
 pub mod opaque;
 
+/// Shorthand for dropping a Box that was turned into a raw pointer
 #[inline]
 pub fn drop_rust_raw_box<T>(pointer: *mut T) {
     unsafe { drop(Box::from_raw(pointer)) }
 }
 
+/// Shorthand for turning a Box into a raw pointer
 #[inline]
 pub fn make_rust_raw_box_pointer<T>(value: T) -> *mut T {
     Box::into_raw(Box::new(value))

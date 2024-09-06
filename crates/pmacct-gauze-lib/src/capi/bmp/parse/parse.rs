@@ -21,6 +21,7 @@ use crate::cresult::CResult;
 use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::opaque::Opaque;
 
+/// This structure must be manually freed using [bmp_parse_result_free]
 pub type BmpParseResult = CResult<ParsedBmp, BmpParseError>;
 
 #[repr(C)]
@@ -48,6 +49,7 @@ pub extern "C" fn netgauze_bmp_parse_packet(buffer: *const c_char, buf_len: u32)
     netgauze_bmp_parse_packet_with_context(buffer, buf_len, &mut Opaque::from(ctx))
 }
 
+/// The `bmp_parsing_context` pointer is mutated but not consumed.
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parse_packet_with_context(
     buffer: *const c_char,

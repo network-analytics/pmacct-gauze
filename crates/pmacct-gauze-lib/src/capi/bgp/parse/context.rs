@@ -2,10 +2,10 @@ use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
 
 use pmacct_gauze_bindings::{afi_t, cap_per_af, safi_t};
 
+use crate::{free_rust_raw_box, make_rust_raw_box_pointer};
 use crate::cresult::CResult;
 use crate::extensions::add_path::AddPathCapability;
 use crate::opaque::Opaque;
-use crate::{free_rust_raw_box, make_rust_raw_box_pointer};
 
 #[repr(C)]
 pub struct UnsupportedAfiSafi {
@@ -13,6 +13,7 @@ pub struct UnsupportedAfiSafi {
     safi: safi_t,
 }
 
+/// This structure must be freed using [netgauze_free_OpaqueBgpParsingContext]
 pub type BgpParsingContextResult = CResult<*mut Opaque<BgpParsingContext>, UnsupportedAfiSafi>;
 
 free_rust_raw_box!(Opaque<BgpParsingContext>, OpaqueBgpParsingContext);
@@ -46,7 +47,5 @@ pub extern "C" fn netgauze_make_bgp_parsing_context(
             fail_on_malformed_path_attr,
         ),
     )))
-    .into()
+        .into()
 }
-
-// TODO functions allowing to update the peer context

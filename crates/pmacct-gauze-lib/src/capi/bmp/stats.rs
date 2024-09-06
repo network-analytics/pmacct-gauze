@@ -8,13 +8,14 @@ use crate::cslice::CSlice;
 use crate::cslice::RustFree;
 use crate::extensions::bmp_statistics::ExtendBmpStatistics;
 use crate::free_cslice_t;
-use crate::log::{pmacct_log, LogPriority};
+use crate::log::{LogPriority, pmacct_log};
 use crate::opaque::Opaque;
 
 pub type BmpStatsResult = CResult<CSlice<bmp_log_stats>, WrongBmpMessageTypeError>;
 
 free_cslice_t!(bmp_log_stats);
 
+/// This function does not consume the `bmp_message_value_opaque` pointer
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_stats_get_stats(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,

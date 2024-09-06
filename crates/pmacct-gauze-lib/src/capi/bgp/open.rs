@@ -1,15 +1,15 @@
 use std::cmp::max;
 use std::os::raw::c_char;
 
-use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_bgp_pkt::BgpMessage;
+use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_parse_utils::WritablePdu;
 
 use pmacct_gauze_bindings::{bgp_peer, host_addr};
 
 use crate::capi::bgp::WrongBgpMessageTypeError;
 use crate::cresult::CResult;
-use crate::log::{pmacct_log, LogPriority};
+use crate::log::{LogPriority, pmacct_log};
 use crate::opaque::Opaque;
 
 pub type BgpOpenProcessResult = CResult<usize, WrongBgpMessageTypeError>;
@@ -32,8 +32,6 @@ pub extern "C" fn netgauze_bgp_process_open(
     peer.id = host_addr::from(&open.bgp_id());
     peer.version = open.version(); // FIXME pmacct limits this to 4 only. same?
 
-    // TODO pmacct duplicate router_id check needs to be done in pmacct still for live bgp
-
     peer.as_ = open.my_asn4(); // this is either the asn4 or the as, TODO error if as_ == AS_TRANS or == 0
 
     let open_params = open.capabilities();
@@ -43,7 +41,7 @@ pub extern "C" fn netgauze_bgp_process_open(
                 peer.cap_mp = u8::from(true);
             }
             BgpCapability::FourOctetAs(_) => {
-                peer.cap_4as = u8::from(true) as *mut c_char; // TODO pmacct: very ugly way to deal with this capability
+                peer.cap_4as = u8::from(true) as *mut c_char; // TODO fix pmacct: very ugly way to deal with this capability
             }
             BgpCapability::AddPath(addpath) => {
                 for addpath_af in addpath.address_families() {

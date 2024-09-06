@@ -55,6 +55,7 @@ impl<T> From<WrongBmpMessageTypeError> for CResult<T, WrongBmpMessageTypeError> 
     }
 }
 
+/// The `CSlice<bmp_log_tlv>` must be manually freed with [CSlice_free_bmp_log_tlv]
 pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, WrongBmpMessageTypeError>;
 
 #[no_mangle]

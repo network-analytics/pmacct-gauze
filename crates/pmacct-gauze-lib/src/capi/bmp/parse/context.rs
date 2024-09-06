@@ -111,8 +111,6 @@ pub extern "C" fn netgauze_context_cache_delete(
 
 #[cfg(test)]
 mod test {
-    use std::ptr::null_mut;
-
     use pmacct_gauze_bindings::{bgp_peer, bgp_peer_buf, bgp_peer_stats, bgp_xconnect, bmp_peer, cap_per_af, host_addr, host_addr__bindgen_ty_1, host_mask, host_mask__bindgen_ty_1, in_addr, log_notification, sockaddr_storage};
 
     use crate::capi::bmp::parse::{netgauze_context_cache_set, netgauze_make_Opaque_BmpParsingContext, netgauze_make_Opaque_ContextCache};
@@ -121,91 +119,7 @@ mod test {
     fn test_leak() {
         let cache = netgauze_make_Opaque_ContextCache();
         let ctx = netgauze_make_Opaque_BmpParsingContext();
-        let mut peer = bmp_peer {
-            self_: bgp_peer {
-                idx: 0,
-                fd: 0,
-                lock: 0,
-                type_: 0,
-                status: 0,
-                version: 0,
-                myas: 0,
-                as_: 0,
-                ht: 0,
-                last_keepalive: 0,
-                id: Default::default(),
-                addr: Default::default(),
-                addr_str: [0; 46],
-                tcp_port: 0,
-                cap_mp: 0,
-                cap_4as: null_mut(),
-                cap_add_paths: cap_per_af {
-                    cap: [[0; 129]; 3],
-                    afi_max: 0,
-                    safi_max: 0,
-                },
-                msglen: 0,
-                stats: bgp_peer_stats {
-                    packets: 0,
-                    packet_bytes: 0,
-                    msg_bytes: 0,
-                    msg_errors: 0,
-                    last_check: 0,
-                },
-                buf: bgp_peer_buf {
-                    base: null_mut(),
-                    tot_len: 0,
-                    cur_len: 0,
-                    exp_len: 0,
-                },
-                log: null_mut(),
-                bmp_se: null_mut(),
-                xc: bgp_xconnect {
-                    id: 0,
-                    dst: sockaddr_storage {
-                        ss_family: 0,
-                        __ss_padding: [0; 118],
-                        __ss_align: 0,
-                    },
-                    dst_len: 0,
-                    src: sockaddr_storage {
-                        ss_family: 0,
-                        __ss_padding: [0; 118],
-                        __ss_align: 0,
-                    },
-                    src_len: 0,
-                    src_addr: host_addr {
-                        family: 0,
-                        address: host_addr__bindgen_ty_1 {
-                            ipv4: in_addr {
-                                s_addr: 0,
-                            }
-                        },
-                    },
-                    src_mask: host_mask {
-                        family: 0,
-                        len: 0,
-                        mask: host_mask__bindgen_ty_1 { m4: 0 },
-                    },
-                },
-                xbuf: bgp_peer_buf {
-                    base: null_mut(),
-                    tot_len: 0,
-                    cur_len: 0,
-                    exp_len: 0,
-                },
-                xconnect_fd: 0,
-                parsed_proxy_header: 0,
-            },
-            bgp_peers_v4: null_mut(),
-            bgp_peers_v6: null_mut(),
-            missing_peer_up: log_notification {
-                stamp: 0,
-                knob: 0,
-                timeout: 0,
-            },
-        };
-
+        let mut peer: bmp_peer = unsafe { std::mem::zeroed() };
         netgauze_context_cache_set(cache, &mut peer, ctx);
     }
 }

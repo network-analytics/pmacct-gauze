@@ -124,7 +124,6 @@ impl Default for BgpParsedAttributes {
 
 pub type BgpUpdateResult = CResult<ParsedBgpUpdate, BgpUpdateError>;
 
-// TODO use netgauze Variant(#[from] OtherError) macros
 #[repr(C)]
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum BgpUpdateError {
@@ -177,7 +176,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         community: ptr::null_mut(),
         ecommunity: ptr::null_mut(),
         lcommunity: ptr::null_mut(),
-        refcnt: 0, // TODO see how this works in pmacct (prob. intern/unintern)
+        refcnt: 0,
         rpki_maxlen: 0,
         nexthop: in_addr::default(),
         mp_nexthop: host_addr::default(),
