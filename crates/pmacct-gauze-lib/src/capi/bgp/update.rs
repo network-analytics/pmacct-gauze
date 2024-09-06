@@ -6,9 +6,7 @@ use std::ptr;
 use ipnet::Ipv4Net;
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
-use netgauze_bgp_pkt::path_attribute::{
-    Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttributeValue,
-};
+use netgauze_bgp_pkt::path_attribute::{Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttribute, PathAttributeValue};
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 
@@ -20,6 +18,7 @@ use pmacct_gauze_bindings::{
     lcommunity_new, lcommunity_val, path_id_t, prefix,
     rd_as, rd_t, safi_t, SAFI_UNICAST,
 };
+use pmacct_gauze_bindings::convert::TryConvertInto;
 
 use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
 use crate::capi::bmp::WrongBmpMessageTypeError;
@@ -137,37 +136,278 @@ impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
     }
 }
 
-// TODO allocate separate community structs to avoid use after free bc pmacct decides to free the given communities with skip_rib
-#[no_mangle]
-pub extern "C" fn netgauze_bgp_update_get_updates(
-    peer: *mut bgp_peer,
-    bmp_rm: *const Opaque<BmpMessageValue>,
-) -> BgpUpdateResult {
-    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
-
-    let bmp_rm = match bmp_value {
-        BmpMessageValue::RouteMonitoring(rm) => rm,
+pub fn process_mp_unreach(mp_unreach: &MpUnreach, attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra, packets: &mut Vec<ProcessPacket>) {
+    let (afi, safi) = match (mp_unreach.afi().try_convert_to(), mp_unreach.safi().try_convert_to()) {
+        (Ok(afi), Ok(safi)) => (afi, safi),
         _ => {
-            return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
-                bmp_value.get_type().into(),
-            ))
-                .into();
+            pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n", mp_unreach.afi(), mp_unreach.safi()));
+            return;
         }
     };
 
-    let bgp_msg = bmp_rm.update_message();
-    let update = match bgp_msg {
-        BgpMessage::Update(update) => update,
+    let update_type = BGP_NLRI_WITHDRAW;
+
+    match mp_unreach {
+        // pmacct only has AFI IPv4/6 & BGP-LS
+        // and SAFI UNICAST MPLS-LABEL MPLS-VPN
+        MpUnreach::Ipv4Unicast { nlri: nlris } => {
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                });
+            }
+        }
+        MpUnreach::Ipv4NlriMplsLabels { nlri: nlris } => {
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.labels());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.prefix()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                });
+            }
+        }
+        MpUnreach::Ipv4MplsVpnUnicast { nlri: nlris } => {
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.label_stack());
+                fill_rd(attr_extra, nlri.rd());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+        MpUnreach::Ipv6Unicast { nlri: nlris } => {
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+        MpUnreach::Ipv6NlriMplsLabels { nlri: nlris } => {
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.labels());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.prefix()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+        MpUnreach::Ipv6MplsVpnUnicast { nlri: nlris } => {
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.label_stack());
+                fill_rd(attr_extra, nlri.rd());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+
+        // not supported by pmacct
+        MpUnreach::Ipv4Multicast { .. }
+        | MpUnreach::Ipv6Multicast { .. }
+        | MpUnreach::L2Evpn { .. }
+        | MpUnreach::RouteTargetMembership { .. }
+        | MpUnreach::BgpLs { .. }
+        | MpUnreach::BgpLsVpn { .. }
+        | MpUnreach::Unknown { .. } => {
+            pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_unreach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
+                                                      mp_unreach.afi(), mp_unreach.safi(), mp_unreach.address_type()));
+        }
+    }
+}
+pub fn process_mp_reach(mp_reach: &MpReach, attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra, packets: &mut Vec<ProcessPacket>) {
+    let (afi, safi) = match (mp_reach.afi().try_convert_to(), mp_reach.safi().try_convert_to()) {
+        (Ok(afi), Ok(safi)) => (afi, safi),
         _ => {
-            return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
-                bgp_msg.get_type().into(),
-            ))
-                .into();
+            pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n", mp_reach.afi(), mp_reach.safi()));
+            return;
         }
     };
 
-    let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
+    let update_type = BGP_NLRI_UPDATE;
 
+    match mp_reach {
+        // pmacct only has AFI IPv4/6 & BGP-LS
+        // and SAFI UNICAST MPLS-LABEL MPLS-VPN
+        MpReach::Ipv4Unicast {
+            next_hop,
+            next_hop_local: _,
+            nlri: nlris,
+        } => {
+            fill_attr_mp_next_hop(attr, next_hop);
+
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                });
+            }
+        }
+        MpReach::Ipv4NlriMplsLabels {
+            next_hop,
+            next_hop_local: _,
+            nlri: nlris,
+        } => {
+            fill_attr_mp_next_hop(attr, next_hop);
+
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.labels());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.prefix()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                });
+            }
+        }
+        MpReach::Ipv4MplsVpnUnicast {
+            next_hop,
+            nlri: nlris,
+        } => {
+            fill_attr_mp_next_hop(attr, &next_hop.next_hop());
+
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.label_stack());
+                fill_rd(attr_extra, nlri.rd());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+        MpReach::Ipv6Unicast {
+            next_hop_global,
+            next_hop_local: _,
+            nlri: nlris,
+        } => {
+            fill_attr_ipv6_next_hop(attr, next_hop_global);
+
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                });
+            }
+        }
+        MpReach::Ipv6NlriMplsLabels {
+            next_hop,
+            next_hop_local: _next_hop_local,
+            nlri: nlris,
+        } => {
+            fill_attr_mp_next_hop(attr, next_hop);
+
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.labels());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.prefix()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+        MpReach::Ipv6MplsVpnUnicast {
+            next_hop,
+            nlri: nlris,
+        } => {
+            fill_attr_mp_next_hop(attr, &next_hop.next_hop());
+
+            for nlri in nlris {
+                fill_path_id(attr_extra, nlri.path_id());
+                fill_mpls_label(attr_extra, nlri.label_stack());
+                fill_rd(attr_extra, nlri.rd());
+
+                packets.push(ProcessPacket {
+                    update_type,
+                    prefix: prefix::from(&nlri.network().address()),
+                    attr: *attr,
+                    attr_extra: *attr_extra,
+                    afi,
+                    safi,
+                })
+            }
+        }
+
+        // not supported by pmacct
+        MpReach::Ipv4Multicast { .. }
+        | MpReach::Ipv6Multicast { .. }
+        | MpReach::L2Evpn { .. }
+        | MpReach::RouteTargetMembership { .. }
+        | MpReach::BgpLs { .. }
+        | MpReach::BgpLsVpn { .. }
+        | MpReach::Unknown { .. } => {
+            pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_reach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
+                                                      mp_reach.afi(), mp_reach.safi(), mp_reach.address_type()));
+        }
+    }
+}
+
+fn process_attributes(peer: *mut bgp_peer, attributes: &Vec<PathAttribute>) -> (Option<&MpReach>, Option<&MpUnreach>, bgp_attr, bgp_attr_extra) {
     let mut mp_reach = None;
     let mut mp_unreach = None;
 
@@ -205,7 +445,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
 
     // TODO free allocated C structs on error
     // TODO accept only one path attribute of each kind, error if multiple
-    for _attr in update.path_attributes() {
+    for _attr in attributes {
         match _attr.value() {
             PathAttributeValue::AsPath(aspath) => {
                 let extended_length = _attr.extended_length();
@@ -213,7 +453,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 let bytes = {
                     let skip_length_offset = AsPath::BASE_LENGTH + usize::from(extended_length);
                     let mut writer = BufWriter::new(&mut bytes);
-                    let _ = aspath.write(&mut writer, extended_length); // todo handle error
+                    let _ = aspath.write(&mut writer, extended_length);
                     drop(writer);
                     bytes.split_at(skip_length_offset).1
                 };
@@ -236,7 +476,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 let bytes = {
                     let skip_length_offset = As4Path::BASE_LENGTH + usize::from(extended_length);
                     let mut writer = BufWriter::new(&mut bytes);
-                    let _ = as4path.write(&mut writer, extended_length); // todo handle error
+                    let _ = as4path.write(&mut writer, extended_length);
                     drop(writer);
                     bytes.split_at(skip_length_offset).1
                 };
@@ -254,6 +494,12 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 attr.aspath = reconcile_as24path(as_path, as4_path);
             }
             PathAttributeValue::Communities(communities) => {
+                // pmacct does not allow rehashing, let's just ignore if we have multiple com attributes
+                if !attr.community.is_null() {
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple community attributes is not supported. ignored.\n");
+                    continue;
+                }
+
                 let com = unsafe { community_new(peer) };
 
                 for community in communities.communities() {
@@ -265,6 +511,12 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 attr.community = unsafe { community_intern(peer, com) };
             }
             PathAttributeValue::LargeCommunities(large_communities) => {
+                // pmacct does not allow rehashing, let's just ignore if we have multiple lcom attributes
+                if !attr.lcommunity.is_null() {
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple lcommunity attributes is not supported. ignored.\n");
+                    continue;
+                }
+
                 let lcom = unsafe { lcommunity_new(peer) };
 
                 for lcommunity in large_communities.communities() {
@@ -277,6 +529,12 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 attr.lcommunity = unsafe { lcommunity_intern(peer, lcom) };
             }
             PathAttributeValue::ExtendedCommunities(extended_communities) => {
+                // pmacct does not allow rehashing, let's just ignore if we have multiple ecom attributes
+                if !attr.ecommunity.is_null() {
+                    pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple ecommunity attributes is not supported. ignored.\n");
+                    continue;
+                }
+
                 let ecom = unsafe { ecommunity_new(peer) };
 
                 for ecommunity in extended_communities.communities() {
@@ -304,7 +562,6 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 fill_attr_ipv4_next_hop(&mut attr, &next_hop.next_hop(), false)
             }
 
-            // TODO error if already present
             PathAttributeValue::MpReach(mp_reach_attr) => {
                 if let Some(_) = mp_reach.replace(mp_reach_attr) {
                     pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_reach is not supported. ignoring previous mp_reach.\n")
@@ -339,6 +596,43 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         };
     }
 
+    (mp_reach, mp_unreach, attr, attr_extra)
+}
+
+#[no_mangle]
+pub extern "C" fn netgauze_bgp_update_get_updates(
+    peer: *mut bgp_peer,
+    bmp_rm: *const Opaque<BmpMessageValue>,
+) -> BgpUpdateResult {
+    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
+
+    let bmp_rm = match bmp_value {
+        BmpMessageValue::RouteMonitoring(rm) => rm,
+        _ => {
+            return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
+                bmp_value.get_type().into(),
+            ))
+                .into();
+        }
+    };
+
+    let bgp_msg = bmp_rm.update_message();
+    let update = match bgp_msg {
+        BgpMessage::Update(update) => update,
+        _ => {
+            return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
+                bgp_msg.get_type().into(),
+            ))
+                .into();
+        }
+    };
+
+    let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
+
+    // Process Attributes
+    let (mp_reach, mp_unreach, mut attr, mut attr_extra) = process_attributes(peer, update.path_attributes());
+
+    // Handle Basic Updates
     for nlri in update.nlri() {
         packets.push(ProcessPacket {
             update_type: BGP_NLRI_UPDATE,
@@ -350,6 +644,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         })
     }
 
+    // Handle Basic Withdraws
     for withdraw in update.withdraw_routes() {
         packets.push(ProcessPacket {
             update_type: BGP_NLRI_WITHDRAW,
@@ -361,326 +656,18 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         })
     }
 
-    fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
-        if mp_reach {
-            attr.mp_nexthop = host_addr::from(next_hop);
-        } else {
-            attr.nexthop = in_addr::from(next_hop);
-        }
-    }
-
-    fn fill_attr_ipv6_next_hop(attr: &mut bgp_attr, next_hop: &Ipv6Addr) {
-        attr.mp_nexthop = host_addr::from(next_hop)
-    }
-
-    fn fill_attr_mp_next_hop(attr: &mut bgp_attr, next_hop: &IpAddr) {
-        match next_hop {
-            IpAddr::V4(ipv4) => fill_attr_ipv4_next_hop(attr, ipv4, true),
-            IpAddr::V6(ipv6) => fill_attr_ipv6_next_hop(attr, ipv6),
-        };
-    }
-
-    fn fill_path_id(attr_extra: &mut bgp_attr_extra, path_id: Option<path_id_t>) {
-        attr_extra.path_id = path_id.unwrap_or(0);
-    }
-
-    fn fill_mpls_label(attr_extra: &mut bgp_attr_extra, label_stack: &Vec<MplsLabel>) {
-        let bos = label_stack
-            .iter()
-            .rev()
-            .filter(|label| label.is_bottom())
-            .next();
-
-        attr_extra.label = if let Some(bos) = bos {
-            bos.value().clone()
-        } else {
-            [0, 0, 0]
-        }
-    }
-
-    fn fill_rd(attr_extra: &mut bgp_attr_extra, rd: RouteDistinguisher) {
-        attr_extra.rd = rd.into();
-        attr_extra.rd.set_pmacct_rd_origin(RdOriginType::BGP);
-    }
-
-    fn cleanup_mp_reach(attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra) {
-        attr.nexthop = in_addr::default();
-        attr.mp_nexthop = host_addr::default();
-
-        attr_extra.path_id = 0;
-        attr_extra.label = [0, 0, 0];
-        attr_extra.rd = rd_t {
-            type_: 0,
-            as_: 0,
-            val: 0,
-        };
-    }
-
     if let Some(mp_reach) = mp_reach {
-        // TODO explicit netgauze->pmacct conversion to ensure values will stay the same
-        let afi = mp_reach.afi() as afi_t;
-        let safi = mp_reach.safi() as safi_t;
-        let update_type = BGP_NLRI_UPDATE;
-
-        match mp_reach {
-            // pmacct only has AFI IPv4/6 & BGP-LS
-            // and SAFI UNICAST MPLS-LABEL MPLS-VPN
-            MpReach::Ipv4Unicast {
-                next_hop,
-                next_hop_local: _,
-                nlri: nlris,
-            } => {
-                fill_attr_mp_next_hop(&mut attr, next_hop);
-
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    });
-                }
-            }
-            MpReach::Ipv4NlriMplsLabels {
-                next_hop,
-                next_hop_local: _,
-                nlri: nlris,
-            } => {
-                fill_attr_mp_next_hop(&mut attr, next_hop);
-
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.labels());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.prefix()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    });
-                }
-            }
-            MpReach::Ipv4MplsVpnUnicast {
-                next_hop,
-                nlri: nlris,
-            } => {
-                fill_attr_mp_next_hop(&mut attr, &next_hop.next_hop());
-
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    fill_rd(&mut attr_extra, nlri.rd());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-            MpReach::Ipv6Unicast {
-                next_hop_global,
-                next_hop_local: _,
-                nlri: nlris,
-            } => {
-                fill_attr_ipv6_next_hop(&mut attr, next_hop_global);
-
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    });
-                }
-            }
-            MpReach::Ipv6NlriMplsLabels {
-                next_hop,
-                next_hop_local: _next_hop_local,
-                nlri: nlris,
-            } => {
-                fill_attr_mp_next_hop(&mut attr, next_hop);
-
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.labels());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.prefix()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-            MpReach::Ipv6MplsVpnUnicast {
-                next_hop,
-                nlri: nlris,
-            } => {
-                fill_attr_mp_next_hop(&mut attr, &next_hop.next_hop());
-
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    fill_rd(&mut attr_extra, nlri.rd());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-
-            // not supported by pmacct
-            MpReach::Ipv4Multicast { .. }
-            | MpReach::Ipv6Multicast { .. }
-            | MpReach::L2Evpn { .. }
-            | MpReach::RouteTargetMembership { .. }
-            | MpReach::BgpLs { .. }
-            | MpReach::BgpLsVpn { .. }
-            | MpReach::Unknown { .. } => {
-                pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_reach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
-                                                          mp_reach.afi(), mp_reach.safi(), mp_reach.address_type()));
-            }
-        }
+        process_mp_reach(mp_reach, &mut attr, &mut attr_extra, &mut packets);
     }
 
+    // Always cleanup just in case
     cleanup_mp_reach(&mut attr, &mut attr_extra);
 
     if let Some(mp_unreach) = mp_unreach {
-        // TODO explicit netgauze->pmacct conversion to ensure values will stay the same
-        let afi = mp_unreach.afi() as afi_t;
-        let safi = mp_unreach.safi() as safi_t;
-        let update_type = BGP_NLRI_WITHDRAW;
-
-        match mp_unreach {
-            // pmacct only has AFI IPv4/6 & BGP-LS
-            // and SAFI UNICAST MPLS-LABEL MPLS-VPN
-            MpUnreach::Ipv4Unicast { nlri: nlris } => {
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    });
-                }
-            }
-            MpUnreach::Ipv4NlriMplsLabels { nlri: nlris } => {
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.labels());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.prefix()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    });
-                }
-            }
-            MpUnreach::Ipv4MplsVpnUnicast { nlri: nlris } => {
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    fill_rd(&mut attr_extra, nlri.rd());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-            MpUnreach::Ipv6Unicast { nlri: nlris } => {
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-            MpUnreach::Ipv6NlriMplsLabels { nlri: nlris } => {
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.labels());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.prefix()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-            MpUnreach::Ipv6MplsVpnUnicast { nlri: nlris } => {
-                for nlri in nlris {
-                    fill_path_id(&mut attr_extra, nlri.path_id());
-                    fill_mpls_label(&mut attr_extra, nlri.label_stack());
-                    fill_rd(&mut attr_extra, nlri.rd());
-
-                    packets.push(ProcessPacket {
-                        update_type,
-                        prefix: prefix::from(&nlri.network().address()),
-                        attr,
-                        attr_extra,
-                        afi,
-                        safi,
-                    })
-                }
-            }
-
-            // not supported by pmacct
-            MpUnreach::Ipv4Multicast { .. }
-            | MpUnreach::Ipv6Multicast { .. }
-            | MpUnreach::L2Evpn { .. }
-            | MpUnreach::RouteTargetMembership { .. }
-            | MpUnreach::BgpLs { .. }
-            | MpUnreach::BgpLsVpn { .. }
-            | MpUnreach::Unknown { .. } => {
-                pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! received mp_unreach with unsupported or unknown afi/safi {}/{} address type {:?}\n",
-                                                          mp_unreach.afi(), mp_unreach.safi(), mp_unreach.address_type()));
-            }
-        }
+        process_mp_unreach(mp_unreach, &mut attr, &mut attr_extra, &mut packets);
     }
 
-    // handle EoR
+    // Handle EoR
     if update.nlri().is_empty() && update.withdraw_routes().is_empty() {
         let afi_safi = if update.path_attributes().is_empty() {
             Some((AFI_IP as afi_t, SAFI_UNICAST as safi_t))
@@ -690,7 +677,8 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
                 mp_unreach.unwrap().safi() as safi_t,
             ))
         } else {
-            None // TODO make error
+            // If we have no NLRI, and no MP_UNREACH, it is not an EoR, there's probably an MP_REACH in there
+            None
         };
 
         if let Some((afi, safi)) = afi_safi {
@@ -714,4 +702,60 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             packets: CSlice::from_vec(packets),
         })
     }
+}
+
+
+fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
+    if mp_reach {
+        attr.mp_nexthop = host_addr::from(next_hop);
+    } else {
+        attr.nexthop = in_addr::from(next_hop);
+    }
+}
+
+fn fill_attr_ipv6_next_hop(attr: &mut bgp_attr, next_hop: &Ipv6Addr) {
+    attr.mp_nexthop = host_addr::from(next_hop)
+}
+
+fn fill_attr_mp_next_hop(attr: &mut bgp_attr, next_hop: &IpAddr) {
+    match next_hop {
+        IpAddr::V4(ipv4) => fill_attr_ipv4_next_hop(attr, ipv4, true),
+        IpAddr::V6(ipv6) => fill_attr_ipv6_next_hop(attr, ipv6),
+    };
+}
+
+fn fill_path_id(attr_extra: &mut bgp_attr_extra, path_id: Option<path_id_t>) {
+    attr_extra.path_id = path_id.unwrap_or(0);
+}
+
+fn fill_mpls_label(attr_extra: &mut bgp_attr_extra, label_stack: &Vec<MplsLabel>) {
+    let bos = label_stack
+        .iter()
+        .rev()
+        .filter(|label| label.is_bottom())
+        .next();
+
+    attr_extra.label = if let Some(bos) = bos {
+        bos.value().clone()
+    } else {
+        [0, 0, 0]
+    }
+}
+
+fn fill_rd(attr_extra: &mut bgp_attr_extra, rd: RouteDistinguisher) {
+    attr_extra.rd = rd.into();
+    attr_extra.rd.set_pmacct_rd_origin(RdOriginType::BGP);
+}
+
+fn cleanup_mp_reach(attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra) {
+    attr.nexthop = in_addr::default();
+    attr.mp_nexthop = host_addr::default();
+
+    attr_extra.path_id = 0;
+    attr_extra.label = [0, 0, 0];
+    attr_extra.rd = rd_t {
+        type_: 0,
+        as_: 0,
+        val: 0,
+    };
 }

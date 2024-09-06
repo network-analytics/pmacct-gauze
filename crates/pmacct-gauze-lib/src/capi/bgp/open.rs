@@ -3,16 +3,26 @@ use std::os::raw::c_char;
 
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::capabilities::BgpCapability;
+use netgauze_bgp_pkt::iana::AS_TRANS;
 use netgauze_parse_utils::WritablePdu;
 
-use pmacct_gauze_bindings::{bgp_peer, host_addr};
+use pmacct_gauze_bindings::{as_t, bgp_peer, host_addr};
+use pmacct_gauze_bindings::convert::TryConvertInto;
 
 use crate::capi::bgp::WrongBgpMessageTypeError;
 use crate::cresult::CResult;
+use crate::extensions::add_path::AddPathCapabilityValue;
 use crate::log::{LogPriority, pmacct_log};
 use crate::opaque::Opaque;
 
-pub type BgpOpenProcessResult = CResult<usize, WrongBgpMessageTypeError>;
+#[repr(C)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum BgpOpenProcessError {
+    WrongBgpMessageTypeError(WrongBgpMessageTypeError),
+    BadPeerASN(as_t),
+}
+
+pub type BgpOpenProcessResult = CResult<usize, BgpOpenProcessError>;
 
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_process_open(
@@ -24,7 +34,7 @@ pub extern "C" fn netgauze_bgp_process_open(
 
     let open = match bgp_msg {
         BgpMessage::Open(open) => open,
-        _ => return WrongBgpMessageTypeError(bgp_msg.get_type().into()).into(),
+        _ => return CResult::Err(BgpOpenProcessError::WrongBgpMessageTypeError(WrongBgpMessageTypeError(bgp_msg.get_type().into()))),
     };
 
     peer.status = pmacct_gauze_bindings::Active as u8;
@@ -32,7 +42,10 @@ pub extern "C" fn netgauze_bgp_process_open(
     peer.id = host_addr::from(&open.bgp_id());
     peer.version = open.version(); // FIXME pmacct limits this to 4 only. same?
 
-    peer.as_ = open.my_asn4(); // this is either the asn4 or the as, TODO error if as_ == AS_TRANS or == 0
+    peer.as_ = open.my_asn4(); // this is either the asn4 or the as,
+    if peer.as_ == AS_TRANS as u32 || peer.as_ == 0 {
+        return CResult::Err(BgpOpenProcessError::BadPeerASN(peer.as_));
+    }
 
     let open_params = open.capabilities();
     for capability in open_params {
@@ -41,27 +54,32 @@ pub extern "C" fn netgauze_bgp_process_open(
                 peer.cap_mp = u8::from(true);
             }
             BgpCapability::FourOctetAs(_) => {
-                peer.cap_4as = u8::from(true) as *mut c_char; // TODO fix pmacct: very ugly way to deal with this capability
+                // TODO fix in pmacct: very ugly way to deal with this capability
+                //  this will be fixed when bgp decoding is done by netgauze
+                peer.cap_4as = u8::from(true) as *mut c_char;
             }
             BgpCapability::AddPath(addpath) => {
                 for addpath_af in addpath.address_families() {
-                    let address_family = addpath_af.address_type();
+                    let address_type = addpath_af.address_type();
                     let send = addpath_af.send();
                     let recv = addpath_af.receive();
 
-                    let afi = address_family.address_family();
-                    let safi = address_family.subsequent_address_family();
-
-                    // TODO check afi < AFI_MAX and safi < SAFI_MAX error if not the case
-                    peer.cap_add_paths.cap[afi as usize][safi as usize] = if send && recv {
-                        3
-                    } else if send {
-                        2
-                    } else if recv {
-                        1
+                    let (afi, safi) = if let Ok(afi_safi) = address_type.try_convert_to() {
+                        afi_safi
                     } else {
-                        unreachable!() // TODO error
+                        pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] add-path AF {:?} not supported in pmacct!\n", address_type));
+                        continue;
                     };
+
+                    peer.cap_add_paths.cap[afi as usize][safi as usize] = if send && recv {
+                        AddPathCapabilityValue::Both
+                    } else if send {
+                        AddPathCapabilityValue::SendOnly
+                    } else if recv {
+                        AddPathCapabilityValue::ReceiveOnly
+                    } else {
+                        AddPathCapabilityValue::Unset
+                    } as u8;
 
                     peer.cap_add_paths.afi_max = max(afi.into(), peer.cap_add_paths.afi_max);
                     peer.cap_add_paths.safi_max = max(safi.into(), peer.cap_add_paths.safi_max);
