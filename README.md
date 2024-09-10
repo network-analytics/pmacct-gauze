@@ -10,20 +10,12 @@ at https://github.com/mxyns/pmacct/tree/netgauze-exp.
 
 ### Prerequisites
 
-- working Rust and C environments
+- working C environment and Rust on the `nightly` channel
 - [cargo-c](https://crates.io/crates/cargo-c)
     - install my fork `cargo install --git https://github.com/mxyns/cargo-c cargo-c` until
       this [PR](https://github.com/mozilla/cbindgen/pull/785) has been merged
 - pmacct headers installed (see [install script](tools/install_pmacct_headers.sh))
     - or use the `PMACCT_INCLUDE_DIR` env variable to set the location of the headers.
-- the following file tree structure
-    - `.` some folder
-        - `netgauze` clone root folder (use my [fork](https://github.com/mxyns/netgauze) to ensure the netgauze version
-          is compatible with pmacct-gauze last version)
-        - `pmacct-gauze` root folder for this project
-
-If you want to place netgauze / pmacct-gauze elsewhere, change the netgauze dependencies location
-in [Cargo.toml](crates/pmacct-gauze-lib/Cargo.toml).
 
 ### Build and install pmacct-gauze
 
