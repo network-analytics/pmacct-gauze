@@ -29,5 +29,3 @@ impl<T> AsRef<T> for Opaque<T> {
         &self.0
     }
 }
-
-// TODO impl deref(mut) instead of asref(mut)

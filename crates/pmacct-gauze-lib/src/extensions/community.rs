@@ -1,8 +1,11 @@
-use netgauze_bgp_pkt::community::{ExtendedCommunity, LargeCommunity};
-use netgauze_parse_utils::WritablePdu;
-use pmacct_gauze_bindings::{ecommunity_val, lcommunity_val, ECOMMUNITY_SIZE, LCOMMUNITY_SIZE};
 use std::io::BufWriter;
 use std::mem::transmute;
+use std::os::raw::c_char;
+
+use netgauze_bgp_pkt::community::{ExtendedCommunity, LargeCommunity};
+use netgauze_parse_utils::WritablePdu;
+
+use pmacct_gauze_bindings::{ecommunity_val, lcommunity_val, ECOMMUNITY_SIZE, LCOMMUNITY_SIZE};
 
 pub trait ExtendLargeCommunity {
     fn to_lcommunity_val(&self) -> lcommunity_val;
@@ -13,7 +16,7 @@ impl ExtendLargeCommunity for LargeCommunity {
         let mut tmp = [0u8; LCOMMUNITY_SIZE as usize];
         {
             let mut writer = BufWriter::new(tmp.as_mut_slice());
-            if let Err(_) = self.write(&mut writer) {
+            if self.write(&mut writer).is_err() {
                 drop(writer);
                 tmp = [0u8; LCOMMUNITY_SIZE as usize]; // TODO error
             }
@@ -21,7 +24,7 @@ impl ExtendLargeCommunity for LargeCommunity {
 
         unsafe {
             lcommunity_val {
-                val: transmute(tmp),
+                val: transmute::<[u8; 12], [c_char; 12]>(tmp),
             }
         }
     }
@@ -36,7 +39,7 @@ impl ExtendExtendedCommunity for ExtendedCommunity {
         let mut tmp = [0u8; ECOMMUNITY_SIZE as usize];
         {
             let mut writer = BufWriter::new(tmp.as_mut_slice());
-            if let Err(_) = self.write(&mut writer) {
+            if self.write(&mut writer).is_err() {
                 drop(writer);
                 tmp = [0u8; ECOMMUNITY_SIZE as usize]; // TODO error
             }
@@ -44,7 +47,7 @@ impl ExtendExtendedCommunity for ExtendedCommunity {
 
         unsafe {
             ecommunity_val {
-                val: transmute(tmp),
+                val: transmute::<[u8; 8], [c_char; 8]>(tmp),
             }
         }
     }

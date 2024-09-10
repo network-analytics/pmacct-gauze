@@ -172,11 +172,7 @@ impl ExtendBmpPeerHeader for PeerHeader {
             return Some(BmpRibType::LocalRib);
         }
 
-        let post = if let Some(post) = self.is_post() {
-            post
-        } else {
-            return None;
-        };
+        let post = self.is_post()?;
 
         match (self.is_out(), post) {
             (Some(false), false) => Some(BmpRibType::AdjRibInPrePolicy),

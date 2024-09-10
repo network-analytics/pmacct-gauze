@@ -92,8 +92,8 @@ pub extern "C" fn netgauze_bgp_process_open(
                     }
                         as u8;
 
-                    peer.cap_add_paths.afi_max = max(afi.into(), peer.cap_add_paths.afi_max);
-                    peer.cap_add_paths.safi_max = max(safi.into(), peer.cap_add_paths.safi_max);
+                    peer.cap_add_paths.afi_max = max(afi, peer.cap_add_paths.afi_max);
+                    peer.cap_add_paths.safi_max = max(safi, peer.cap_add_paths.safi_max);
                 }
             }
             BgpCapability::RouteRefresh

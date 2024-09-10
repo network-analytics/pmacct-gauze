@@ -20,7 +20,7 @@ impl ExtendIpAddr for IpAddr {
     fn to_bytes(&self) -> IpAddrBytes {
         let result = match self {
             IpAddr::V4(ipv4) => [0, 0, 0, ipv4.to_bits().to_be()],
-            IpAddr::V6(ipv6) => unsafe { transmute(ipv6.to_bits().to_be()) },
+            IpAddr::V6(ipv6) => unsafe { transmute::<u128, [u32; 4]>(ipv6.to_bits().to_be()) },
         };
         IpAddrBytes(result)
     }

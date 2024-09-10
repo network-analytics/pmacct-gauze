@@ -92,9 +92,7 @@ impl Error for BgpParseError {}
 impl BgpParseError {
     fn as_str_ptr(&self) -> *const c_char {
         match self {
-            BgpParseError::NetgauzeBgpError(err) => {
-                return *err as *const c_char;
-            }
+            BgpParseError::NetgauzeBgpError(err) => *err as *const c_char,
             BgpParseError::StringConversionError => c_str! {
                 "BgpParseError::StringConversionError"
             }

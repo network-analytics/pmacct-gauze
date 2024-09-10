@@ -54,8 +54,8 @@ pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
         update.write(&mut writer)
     };
 
-    let buf = if let Ok(_) = written {
-        unsafe { CSlice::from_vec(buf) }
+    if written.is_ok() {
+        CSlice::from_vec(buf)
     } else {
         CSlice {
             base_ptr: ptr::null_mut(),
@@ -64,9 +64,7 @@ pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
             len: 0,
             cap: 0,
         }
-    };
-
-    buf
+    }
 }
 
 #[repr(C)]
@@ -508,7 +506,9 @@ fn process_attributes(
                     )
                 };
 
-                attr.aspath = reconcile_as24path(as_path, as4_path);
+                unsafe {
+                    attr.aspath = reconcile_as24path(as_path, as4_path);
+                }
             }
             PathAttributeValue::As4Path(as4path) => {
                 let extended_length = _attr.extended_length();
@@ -531,7 +531,7 @@ fn process_attributes(
                     )
                 };
 
-                attr.aspath = reconcile_as24path(as_path, as4_path);
+                attr.aspath = unsafe { reconcile_as24path(as_path, as4_path) };
             }
             PathAttributeValue::Communities(communities) => {
                 // pmacct does not allow rehashing, let's just ignore if we have multiple com attributes
@@ -603,12 +603,12 @@ fn process_attributes(
             }
 
             PathAttributeValue::MpReach(mp_reach_attr) => {
-                if let Some(_) = mp_reach.replace(mp_reach_attr) {
+                if mp_reach.replace(mp_reach_attr).is_some() {
                     pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_reach is not supported. ignoring previous mp_reach.\n")
                 }
             }
             PathAttributeValue::MpUnreach(mp_unreach_attr) => {
-                if let Some(_) = mp_unreach.replace(mp_unreach_attr) {
+                if mp_unreach.replace(mp_unreach_attr).is_some() {
                     pmacct_log(LogPriority::Warning, "[pmacct-gauze] warn! multiple mp_unreach is not supported. ignoring previous mp_unreach.\n")
                 }
             }
@@ -734,15 +734,13 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         }
     };
 
-    unsafe {
-        BgpUpdateResult::Ok(ParsedBgpUpdate {
-            update_count: packets
-                .iter()
-                .filter(|x| x.update_type == BGP_NLRI_UPDATE)
-                .count(),
-            packets: CSlice::from_vec(packets),
-        })
-    }
+    BgpUpdateResult::Ok(ParsedBgpUpdate {
+        update_count: packets
+            .iter()
+            .filter(|x| x.update_type == BGP_NLRI_UPDATE)
+            .count(),
+        packets: CSlice::from_vec(packets),
+    })
 }
 
 fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
@@ -768,15 +766,11 @@ fn fill_path_id(attr_extra: &mut bgp_attr_extra, path_id: Option<path_id_t>) {
     attr_extra.path_id = path_id.unwrap_or(0);
 }
 
-fn fill_mpls_label(attr_extra: &mut bgp_attr_extra, label_stack: &Vec<MplsLabel>) {
-    let bos = label_stack
-        .iter()
-        .rev()
-        .filter(|label| label.is_bottom())
-        .next();
+fn fill_mpls_label(attr_extra: &mut bgp_attr_extra, label_stack: &[MplsLabel]) {
+    let bos = label_stack.iter().rev().find(|label| label.is_bottom());
 
     attr_extra.label = if let Some(bos) = bos {
-        bos.value().clone()
+        *bos.value()
     } else {
         [0, 0, 0]
     }

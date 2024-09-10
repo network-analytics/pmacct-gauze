@@ -84,6 +84,6 @@ pub extern "C" fn netgauze_bmp_stats_get_stats(
         });
     }
 
-    let slice = unsafe { CSlice::from_vec(result) };
+    let slice = CSlice::from_vec(result);
     CResult::Ok(slice)
 }

@@ -17,14 +17,14 @@ impl From<RouteDistinguisher> for rd_t {
                 val: number,
             },
             RouteDistinguisher::Ipv4Administrator { ip, number } => unsafe {
-                transmute(rd_ip {
+                transmute::<rd_ip, rd_as>(rd_ip {
                     type_,
                     ip: in_addr::from(&ip),
                     val: number,
                 })
             },
             RouteDistinguisher::As4Administrator { asn4, number } => unsafe {
-                transmute(rd_as4 {
+                transmute::<rd_as4, rd_as>(rd_as4 {
                     type_,
                     as_: asn4,
                     val: number,
@@ -44,11 +44,9 @@ impl From<rd_t> for RouteDistinguisher {
         let rd_type = unsafe { bgp_rd_type_get(value.type_) } as u32;
 
         if rd_type == RD_TYPE_AS {
-            let rd_as: rd_as = unsafe { transmute(value) };
-
             RouteDistinguisher::As2Administrator {
-                asn2: rd_as.as_,
-                number: rd_as.val,
+                asn2: value.as_,
+                number: value.val,
             }
         } else if rd_type == RD_TYPE_IP {
             let rd_ip: rd_ip = unsafe { transmute(value) };

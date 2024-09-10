@@ -1,5 +1,6 @@
 use netgauze_bmp_pkt::StatisticsCounter;
 use netgauze_iana::address_family::AddressType;
+
 use pmacct_gauze_bindings::convert::TryConvertFrom;
 use pmacct_gauze_bindings::{afi_t, safi_t};
 
@@ -10,7 +11,7 @@ pub trait ExtendBmpStatistics {
 
 impl ExtendBmpStatistics for StatisticsCounter {
     fn get_afi_safi(&self) -> Result<Option<(afi_t, safi_t)>, AddressType> {
-        return match self {
+        match self {
             StatisticsCounter::NumberOfPrefixesRejectedByInboundPolicy(_)
             | StatisticsCounter::NumberOfDuplicatePrefixAdvertisements(_)
             | StatisticsCounter::NumberOfDuplicateWithdraws(_)
@@ -39,22 +40,22 @@ impl ExtendBmpStatistics for StatisticsCounter {
                 let safi = address_type.subsequent_address_family();
 
                 let afi_t = afi_t::try_convert_from(afi);
-                let afi_t = if afi_t.is_err() {
-                    return Err(*address_type);
+                let afi_t = if let Ok(afi_t) = afi_t {
+                    afi_t
                 } else {
-                    afi_t.unwrap()
+                    return Err(*address_type);
                 };
 
                 let safi_t = safi_t::try_convert_from(safi);
-                let safi_t = if safi_t.is_err() {
-                    return Err(*address_type);
+                let safi_t = if let Ok(safi_t) = safi_t {
+                    safi_t
                 } else {
-                    safi_t.unwrap()
+                    return Err(*address_type);
                 };
 
                 Ok(Some((afi_t, safi_t)))
             }
-        };
+        }
     }
 
     fn get_value_as_u64(&self) -> Result<u64, ()> {

@@ -27,7 +27,7 @@ impl Opaque<BmpMessageValue> {
     pub fn peer_key(&self) -> Option<PeerKey> {
         self.as_ref()
             .get_peer_header()
-            .map(|peer_hdr| PeerKey::from_peer_header(peer_hdr))
+            .map(PeerKey::from_peer_header)
     }
 }
 
@@ -110,7 +110,7 @@ pub extern "C" fn netgauze_bmp_get_tlvs(
         _ => return WrongBmpMessageTypeError(bmp_value.get_type().into()).into(),
     };
 
-    let c_slice = unsafe { CSlice::from_vec(tlvs) };
+    let c_slice = CSlice::from_vec(tlvs);
 
     CResult::Ok(c_slice)
 }

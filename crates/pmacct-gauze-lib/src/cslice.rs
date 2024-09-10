@@ -12,6 +12,8 @@ pub struct CSlice<T> {
     pub cap: usize,
 }
 
+/// Custom [Drop] trait to ensure correct behaviour with [CSlice::rust_free]
+///
 /// This trait is the equivalent of [Drop] but for Rust allocated items
 /// that are not tracked anymore ([Box::into_raw], [Vec::into_raw]) or need
 /// special treatment (a struct containing a raw [ptr] for example).
@@ -36,18 +38,20 @@ where
 
 impl<T> CSlice<T> {
     /// Turn a [Vec<T>] into a [CSlice<T>] to send it over to C
-    pub unsafe fn from_vec(value: Vec<T>) -> Self {
+    pub fn from_vec(value: Vec<T>) -> Self {
         let (ptr, len, cap) = value.into_raw_parts();
         CSlice {
             base_ptr: ptr,
             stride: size_of::<T>(),
-            end_ptr: ptr.add(len),
+            end_ptr: unsafe { ptr.add(len) }, // this is guaranteed by [Vec::into_raw_parts]
             len,
             cap,
         }
     }
 
     /// Turn a [CSlice<T>] back into a [Vec<T>]
+    /// # Safety
+    /// see [Vec::from_raw_parts]
     pub unsafe fn to_vec(self) -> Vec<T> {
         Vec::from_raw_parts(self.base_ptr, self.len, self.cap)
     }

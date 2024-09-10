@@ -107,9 +107,7 @@ impl BmpParseError {
                 "BmpParseError::RouteDistinguisher"
             }
             .as_ptr(),
-            BmpParseError::NetgauzeBmpError(err) => {
-                return *err as *const c_char;
-            }
+            BmpParseError::NetgauzeBmpError(err) => *err as *const c_char,
             BmpParseError::StringConversion => c_str! {
                 "BmpParseError::StringConversion"
             }

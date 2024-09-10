@@ -55,7 +55,12 @@ impl Debug for DebugUpdateType {
     }
 }
 
-pub fn reconcile_as24path(as_path: *mut aspath, as4_path: *mut aspath) -> *mut aspath {
+/// Rewrite of [aspath_reconcile_as4]
+/// # Safety
+/// Both [*mut aspath] need to have been allocated by pmacct using
+/// - [pmacct_gauze_bindings::aspath_make_empty]
+/// - [pmacct_gauze_bindings::aspath_dup]
+pub unsafe fn reconcile_as24path(as_path: *mut aspath, as4_path: *mut aspath) -> *mut aspath {
     if !as_path.is_null() && !as4_path.is_null() {
         let reconciled = unsafe { aspath_reconcile_as4(as_path, as4_path) };
         if !reconciled.is_null() {
@@ -72,5 +77,5 @@ pub fn reconcile_as24path(as_path: *mut aspath, as4_path: *mut aspath) -> *mut a
         return as_path;
     }
 
-    return as4_path;
+    as4_path
 }

@@ -145,7 +145,7 @@ fn append_file<P: AsRef<Path> + ?Sized>(
     path: &P,
     line_break: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let mut f = OpenOptions::new().write(true).append(true).open(path)?;
+    let mut f = OpenOptions::new().append(true).open(path)?;
 
     f.write_all(data)?;
 

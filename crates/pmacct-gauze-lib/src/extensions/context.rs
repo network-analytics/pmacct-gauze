@@ -30,6 +30,6 @@ impl ExtendBmpParsingContext for BmpParsingContext {
     }
 
     fn get_peer(&mut self, peer_key: &PeerKey) -> Option<&mut BgpParsingContext> {
-        self.get_mut(&peer_key)
+        self.get_mut(peer_key)
     }
 }
