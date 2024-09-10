@@ -112,7 +112,7 @@ fn export_renames(name_mappings: NameMappings, out_path: &PathBuf) -> bindgen_br
 
     let bindings_renames = codegen
         .variable_name(Some("bindings_renames"))
-        .use_aliases(false)
+        .force_aliases_use(false)
         .generate()?
         .to_string();
 
@@ -120,7 +120,7 @@ fn export_renames(name_mappings: NameMappings, out_path: &PathBuf) -> bindgen_br
 
     let bindings_renames_aliased = codegen
         .variable_name(Some("bindings_renames_aliased"))
-        .use_aliases(true)
+        .force_aliases_use(true)
         .generate()?
         .to_string();
 
