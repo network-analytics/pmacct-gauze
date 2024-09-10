@@ -2,8 +2,8 @@ use netgauze_bgp_pkt::nlri::RouteDistinguisher;
 use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
 
 use pmacct_gauze_bindings::{
-    bgp_rd_origin_set, RD_ORIGIN_BGP, RD_ORIGIN_BMP, RD_ORIGIN_FLOW, RD_ORIGIN_FUNC_TYPE_MAX, RD_ORIGIN_MAP,
-    RD_ORIGIN_MASK, RD_ORIGIN_UNKNOWN, rd_t,
+    bgp_rd_origin_set, rd_t, RD_ORIGIN_BGP, RD_ORIGIN_BMP, RD_ORIGIN_FLOW, RD_ORIGIN_FUNC_TYPE_MAX,
+    RD_ORIGIN_MAP, RD_ORIGIN_MASK, RD_ORIGIN_UNKNOWN,
 };
 
 #[repr(transparent)]

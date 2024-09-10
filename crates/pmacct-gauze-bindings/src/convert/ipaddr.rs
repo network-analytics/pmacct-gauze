@@ -4,8 +4,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{
-    AFI_IP, AFI_IP6, bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in6_addr,
-    in6_addr__bindgen_ty_1, in_addr, prefix, prefix__bindgen_ty_1,
+    bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in6_addr, in6_addr__bindgen_ty_1, in_addr,
+    prefix, prefix__bindgen_ty_1, AFI_IP, AFI_IP6,
 };
 
 impl From<&Ipv4Addr> for in_addr {

@@ -4,23 +4,25 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
 use ipnet::Ipv4Net;
-use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
-use netgauze_bgp_pkt::path_attribute::{Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttribute, PathAttributeValue};
+use netgauze_bgp_pkt::path_attribute::{
+    Aigp, As4Path, AsPath, MpReach, MpUnreach, PathAttribute, PathAttributeValue,
+};
+use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
 
-use pmacct_gauze_bindings::{
-    AFI_IP, afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF,
-    BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, bgp_peer,
-    community, community_add_val, community_intern, community_new, ecommunity, ecommunity_add_val,
-    ecommunity_intern, ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val, lcommunity_intern,
-    lcommunity_new, lcommunity_val, path_id_t, prefix,
-    rd_as, rd_t, safi_t, SAFI_UNICAST,
-};
 use pmacct_gauze_bindings::convert::TryConvertInto;
+use pmacct_gauze_bindings::{
+    afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community, community_add_val,
+    community_intern, community_new, ecommunity, ecommunity_add_val, ecommunity_intern,
+    ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val,
+    lcommunity_intern, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t,
+    AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC,
+    BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, SAFI_UNICAST,
+};
 
-use crate::capi::bgp::{DebugUpdateType, reconcile_as24path, WrongBgpMessageTypeError};
+use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
 use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
@@ -28,7 +30,7 @@ use crate::cslice::RustFree;
 use crate::extensions::community::{ExtendExtendedCommunity, ExtendLargeCommunity};
 use crate::extensions::rd::{ExtendRdT, RdOriginType};
 use crate::free_cslice_t;
-use crate::log::{LogPriority, pmacct_log};
+use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
 
 free_cslice_t!(u8);
@@ -136,11 +138,26 @@ impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
     }
 }
 
-pub fn process_mp_unreach(mp_unreach: &MpUnreach, attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra, packets: &mut Vec<ProcessPacket>) {
-    let (afi, safi) = match (mp_unreach.afi().try_convert_to(), mp_unreach.safi().try_convert_to()) {
+pub fn process_mp_unreach(
+    mp_unreach: &MpUnreach,
+    attr: &mut bgp_attr,
+    attr_extra: &mut bgp_attr_extra,
+    packets: &mut Vec<ProcessPacket>,
+) {
+    let (afi, safi) = match (
+        mp_unreach.afi().try_convert_to(),
+        mp_unreach.safi().try_convert_to(),
+    ) {
         (Ok(afi), Ok(safi)) => (afi, safi),
         _ => {
-            pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n", mp_unreach.afi(), mp_unreach.safi()));
+            pmacct_log(
+                LogPriority::Warning,
+                &format!(
+                    "[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n",
+                    mp_unreach.afi(),
+                    mp_unreach.safi()
+                ),
+            );
             return;
         }
     };
@@ -254,11 +271,26 @@ pub fn process_mp_unreach(mp_unreach: &MpUnreach, attr: &mut bgp_attr, attr_extr
         }
     }
 }
-pub fn process_mp_reach(mp_reach: &MpReach, attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra, packets: &mut Vec<ProcessPacket>) {
-    let (afi, safi) = match (mp_reach.afi().try_convert_to(), mp_reach.safi().try_convert_to()) {
+pub fn process_mp_reach(
+    mp_reach: &MpReach,
+    attr: &mut bgp_attr,
+    attr_extra: &mut bgp_attr_extra,
+    packets: &mut Vec<ProcessPacket>,
+) {
+    let (afi, safi) = match (
+        mp_reach.afi().try_convert_to(),
+        mp_reach.safi().try_convert_to(),
+    ) {
         (Ok(afi), Ok(safi)) => (afi, safi),
         _ => {
-            pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n", mp_reach.afi(), mp_reach.safi()));
+            pmacct_log(
+                LogPriority::Warning,
+                &format!(
+                    "[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n",
+                    mp_reach.afi(),
+                    mp_reach.safi()
+                ),
+            );
             return;
         }
     };
@@ -407,7 +439,15 @@ pub fn process_mp_reach(mp_reach: &MpReach, attr: &mut bgp_attr, attr_extra: &mu
     }
 }
 
-fn process_attributes(peer: *mut bgp_peer, attributes: &Vec<PathAttribute>) -> (Option<&MpReach>, Option<&MpUnreach>, bgp_attr, bgp_attr_extra) {
+fn process_attributes(
+    peer: *mut bgp_peer,
+    attributes: &Vec<PathAttribute>,
+) -> (
+    Option<&MpReach>,
+    Option<&MpUnreach>,
+    bgp_attr,
+    bgp_attr_extra,
+) {
     let mut mp_reach = None;
     let mut mp_unreach = None;
 
@@ -612,7 +652,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
                 bmp_value.get_type().into(),
             ))
-                .into();
+            .into();
         }
     };
 
@@ -623,14 +663,15 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
             return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
                 bgp_msg.get_type().into(),
             ))
-                .into();
+            .into();
         }
     };
 
     let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
 
     // Process Attributes
-    let (mp_reach, mp_unreach, mut attr, mut attr_extra) = process_attributes(peer, update.path_attributes());
+    let (mp_reach, mp_unreach, mut attr, mut attr_extra) =
+        process_attributes(peer, update.path_attributes());
 
     // Handle Basic Updates
     for nlri in update.nlri() {
@@ -703,7 +744,6 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
         })
     }
 }
-
 
 fn fill_attr_ipv4_next_hop(attr: &mut bgp_attr, next_hop: &Ipv4Addr, mp_reach: bool) {
     if mp_reach {

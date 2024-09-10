@@ -1,18 +1,18 @@
 use std::cmp::max;
 use std::os::raw::c_char;
 
-use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::capabilities::BgpCapability;
 use netgauze_bgp_pkt::iana::AS_TRANS;
+use netgauze_bgp_pkt::BgpMessage;
 use netgauze_parse_utils::WritablePdu;
 
-use pmacct_gauze_bindings::{as_t, bgp_peer, host_addr};
 use pmacct_gauze_bindings::convert::TryConvertInto;
+use pmacct_gauze_bindings::{as_t, bgp_peer, host_addr};
 
 use crate::capi::bgp::WrongBgpMessageTypeError;
 use crate::cresult::CResult;
 use crate::extensions::add_path::AddPathCapabilityValue;
-use crate::log::{LogPriority, pmacct_log};
+use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
 
 #[repr(C)]
@@ -34,7 +34,11 @@ pub extern "C" fn netgauze_bgp_process_open(
 
     let open = match bgp_msg {
         BgpMessage::Open(open) => open,
-        _ => return CResult::Err(BgpOpenProcessError::WrongBgpMessageTypeError(WrongBgpMessageTypeError(bgp_msg.get_type().into()))),
+        _ => {
+            return CResult::Err(BgpOpenProcessError::WrongBgpMessageTypeError(
+                WrongBgpMessageTypeError(bgp_msg.get_type().into()),
+            ))
+        }
     };
 
     peer.status = pmacct_gauze_bindings::Active as u8;
@@ -67,7 +71,13 @@ pub extern "C" fn netgauze_bgp_process_open(
                     let (afi, safi) = if let Ok(afi_safi) = address_type.try_convert_to() {
                         afi_safi
                     } else {
-                        pmacct_log(LogPriority::Warning, &format!("[pmacct-gauze] add-path AF {:?} not supported in pmacct!\n", address_type));
+                        pmacct_log(
+                            LogPriority::Warning,
+                            &format!(
+                                "[pmacct-gauze] add-path AF {:?} not supported in pmacct!\n",
+                                address_type
+                            ),
+                        );
                         continue;
                     };
 
@@ -79,7 +89,8 @@ pub extern "C" fn netgauze_bgp_process_open(
                         AddPathCapabilityValue::ReceiveOnly
                     } else {
                         AddPathCapabilityValue::Unset
-                    } as u8;
+                    }
+                        as u8;
 
                     peer.cap_add_paths.afi_max = max(afi.into(), peer.cap_add_paths.afi_max);
                     peer.cap_add_paths.safi_max = max(safi.into(), peer.cap_add_paths.safi_max);

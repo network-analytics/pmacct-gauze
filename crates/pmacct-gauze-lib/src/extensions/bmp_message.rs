@@ -1,6 +1,9 @@
 use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue, BmpPeerType, PeerHeader};
 
-use pmacct_gauze_bindings::{bmp_peer_hdr, BMP_RIB_ADJ_RIB_IN_POST, BMP_RIB_ADJ_RIB_IN_PRE, BMP_RIB_ADJ_RIB_OUT_PRE, BMP_RIB_LOC_RIB};
+use pmacct_gauze_bindings::{
+    bmp_peer_hdr, BMP_RIB_ADJ_RIB_IN_POST, BMP_RIB_ADJ_RIB_IN_PRE, BMP_RIB_ADJ_RIB_OUT_PRE,
+    BMP_RIB_LOC_RIB,
+};
 
 use crate::capi::bmp::parse::BmpParseError;
 use crate::extensions::ipaddr::{ExtendIpAddr, IpAddrBytes};
@@ -102,7 +105,7 @@ impl From<BmpRibType> for u8 {
             BmpRibType::AdjRibInPostPolicy => BMP_RIB_ADJ_RIB_IN_POST as u8,
             BmpRibType::LocalRib => BMP_RIB_LOC_RIB as u8,
             BmpRibType::AdjRibOutPrePolicy => BMP_RIB_ADJ_RIB_OUT_PRE as u8,
-            BmpRibType::AdjRibOutPostPolicy => BMP_RIB_ADJ_RIB_IN_POST as u8
+            BmpRibType::AdjRibOutPostPolicy => BMP_RIB_ADJ_RIB_IN_POST as u8,
         }
     }
 }
@@ -180,7 +183,7 @@ impl ExtendBmpPeerHeader for PeerHeader {
             (Some(false), true) => Some(BmpRibType::AdjRibInPostPolicy),
             (Some(true), false) => Some(BmpRibType::AdjRibOutPrePolicy),
             (Some(true), true) => Some(BmpRibType::AdjRibOutPostPolicy),
-            (None, _) => None
+            (None, _) => None,
         }
     }
 }

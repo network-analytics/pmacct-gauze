@@ -5,21 +5,21 @@ use std::slice;
 
 use c_str_macro::c_str;
 use libc::c_char;
-use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use netgauze_bgp_pkt::wire::serializer::nlri::RouteDistinguisherWritingError;
-use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue};
+use netgauze_bgp_pkt::wire::serializer::IpAddrWritingError;
 use netgauze_bmp_pkt::wire::deserializer::BmpParsingContext;
+use netgauze_bmp_pkt::{BmpMessage, BmpMessageValue};
 use netgauze_parse_utils::{ReadablePduWithOneInput, Span};
 use nom::Offset;
 
 use pmacct_gauze_bindings::{bmp_common_hdr, bmp_peer_hdr};
 
-use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::coption::COption;
 use crate::cresult::CResult;
 use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::opaque::Opaque;
+use crate::{drop_rust_raw_box, make_rust_raw_box_pointer};
 
 /// This structure must be manually freed using [bmp_parse_result_free]
 pub type BmpParseResult = CResult<ParsedBmp, BmpParseError>;
@@ -106,22 +106,22 @@ impl BmpParseError {
             BmpParseError::RouteDistinguisher => c_str! {
                 "BmpParseError::RouteDistinguisher"
             }
-                .as_ptr(),
+            .as_ptr(),
             BmpParseError::NetgauzeBmpError(err) => {
                 return *err as *const c_char;
             }
             BmpParseError::StringConversion => c_str! {
                 "BmpParseError::StringConversion"
             }
-                .as_ptr(),
+            .as_ptr(),
             BmpParseError::IpAddr => c_str! {
                 "BmpParseError::IpAddr"
             }
-                .as_ptr(),
+            .as_ptr(),
             BmpParseError::WrongBmpMessageType(_) => c_str! {
                 "BmpParseError::WrongMessageType"
             }
-                .as_ptr(),
+            .as_ptr(),
         }
     }
 }

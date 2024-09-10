@@ -125,7 +125,6 @@ macro_rules! make_default {
 }
 pub use make_default;
 
-
 /// Generate a function called `netgauze_free_T` for C to free a value of `T` from the heap.
 ///
 /// The generated function takes a raw pointer [*mut T] made from a [Box::<T>], and drops it using [crate::drop_rust_raw_box].

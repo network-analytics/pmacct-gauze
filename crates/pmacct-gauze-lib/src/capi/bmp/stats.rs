@@ -8,7 +8,7 @@ use crate::cslice::CSlice;
 use crate::cslice::RustFree;
 use crate::extensions::bmp_statistics::ExtendBmpStatistics;
 use crate::free_cslice_t;
-use crate::log::{LogPriority, pmacct_log};
+use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
 
 pub type BmpStatsResult = CResult<CSlice<bmp_log_stats>, WrongBmpMessageTypeError>;

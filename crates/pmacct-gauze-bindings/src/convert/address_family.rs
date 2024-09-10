@@ -1,7 +1,7 @@
 use netgauze_iana::address_family::{AddressFamily, AddressType, SubsequentAddressFamily};
 
-use crate::{AFI_MAX, afi_t, SAFI_MAX, safi_t};
 use crate::convert::TryConvertFrom;
+use crate::{afi_t, safi_t, AFI_MAX, SAFI_MAX};
 
 impl TryConvertFrom<afi_t> for AddressFamily {
     type Error = ();
@@ -54,7 +54,8 @@ impl TryConvertFrom<AddressType> for (afi_t, safi_t) {
 
     fn try_convert_from(address_type: AddressType) -> Result<Self, Self::Error> {
         if let Ok(afi) = afi_t::try_convert_from(address_type.address_family())
-            && let Ok(safi) = safi_t::try_convert_from(address_type.subsequent_address_family()) {
+            && let Ok(safi) = safi_t::try_convert_from(address_type.subsequent_address_family())
+        {
             Ok((afi, safi))
         } else {
             Err(())

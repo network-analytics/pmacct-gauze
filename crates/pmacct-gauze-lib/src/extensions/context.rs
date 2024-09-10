@@ -1,6 +1,6 @@
 use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
-use netgauze_bmp_pkt::PeerKey;
 use netgauze_bmp_pkt::wire::deserializer::BmpParsingContext;
+use netgauze_bmp_pkt::PeerKey;
 
 pub trait ExtendBmpParsingContext {
     fn peer_count(&self) -> usize;

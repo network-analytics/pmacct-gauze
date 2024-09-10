@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::ptr::null_mut;
 
-use netgauze_bmp_pkt::{BmpMessageValue, PeerKey};
 use netgauze_bmp_pkt::wire::deserializer::BmpParsingContext;
+use netgauze_bmp_pkt::{BmpMessageValue, PeerKey};
 
 use pmacct_gauze_bindings::bmp_peer;
 
-use crate::{free_rust_raw_box, make_default};
 use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::extensions::context::ExtendBmpParsingContext;
 use crate::opaque::Opaque;
+use crate::{free_rust_raw_box, make_default};
 
 make_default!(Opaque<BmpParsingContext>, Opaque_BmpParsingContext);
 
@@ -52,8 +52,7 @@ pub struct ContextCache {
     map: HashMap<ContextCacheKey, BmpParsingContext>,
 }
 
-impl Deref for ContextCache
-{
+impl Deref for ContextCache {
     type Target = HashMap<ContextCacheKey, BmpParsingContext>;
 
     fn deref(&self) -> &Self::Target {
@@ -61,8 +60,7 @@ impl Deref for ContextCache
     }
 }
 
-impl DerefMut for ContextCache
-{
+impl DerefMut for ContextCache {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
     }
@@ -90,14 +88,12 @@ pub extern "C" fn netgauze_context_cache_get(
 ) -> *mut Opaque<BmpParsingContext> {
     let context_cache = unsafe { opaque_context_cache.as_mut().unwrap().as_mut() };
 
-
     if let Some(parsing_context) = context_cache.get_mut(&context_cache_key) {
         parsing_context as *mut BmpParsingContext as *mut Opaque<BmpParsingContext>
     } else {
         null_mut()
     }
 }
-
 
 #[no_mangle]
 pub extern "C" fn netgauze_context_cache_delete(
@@ -108,12 +104,18 @@ pub extern "C" fn netgauze_context_cache_delete(
     let _ = context_cache.remove(&context_cache_key);
 }
 
-
 #[cfg(test)]
 mod test {
-    use pmacct_gauze_bindings::{bgp_peer, bgp_peer_buf, bgp_peer_stats, bgp_xconnect, bmp_peer, cap_per_af, host_addr, host_addr__bindgen_ty_1, host_mask, host_mask__bindgen_ty_1, in_addr, log_notification, sockaddr_storage};
+    use pmacct_gauze_bindings::{
+        bgp_peer, bgp_peer_buf, bgp_peer_stats, bgp_xconnect, bmp_peer, cap_per_af, host_addr,
+        host_addr__bindgen_ty_1, host_mask, host_mask__bindgen_ty_1, in_addr, log_notification,
+        sockaddr_storage,
+    };
 
-    use crate::capi::bmp::parse::{netgauze_context_cache_set, netgauze_make_Opaque_BmpParsingContext, netgauze_make_Opaque_ContextCache};
+    use crate::capi::bmp::parse::{
+        netgauze_context_cache_set, netgauze_make_Opaque_BmpParsingContext,
+        netgauze_make_Opaque_ContextCache,
+    };
 
     #[test]
     fn test_leak() {
