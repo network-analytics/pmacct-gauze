@@ -1,11 +1,12 @@
 use std::ffi::c_int;
+use std::mem::transmute;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{
-    bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in6_addr, in6_addr__bindgen_ty_1, in_addr,
-    prefix, prefix__bindgen_ty_1, AFI_IP, AFI_IP6,
+    bgp_afi2family, host_addr, host_addr__bindgen_ty_1, in_addr, prefix, prefix__bindgen_ty_1,
+    AFI_IP, AFI_IP6,
 };
 
 impl From<&Ipv4Addr> for in_addr {
@@ -28,19 +29,21 @@ impl From<in_addr> for Ipv4Addr {
     }
 }
 
-impl From<&Ipv6Addr> for in6_addr {
+impl From<&Ipv6Addr> for crate::in6_addr {
     fn from(value: &Ipv6Addr) -> Self {
-        in6_addr {
-            __in6_u: in6_addr__bindgen_ty_1 {
-                __u6_addr8: value.octets(),
-            },
+        unsafe {
+            transmute::<libc::in6_addr, crate::in6_addr>(libc::in6_addr {
+                s6_addr: value.octets(),
+            })
         }
     }
 }
 
-impl From<&in6_addr> for Ipv6Addr {
-    fn from(value: &in6_addr) -> Self {
-        unsafe { Ipv6Addr::from(value.__in6_u.__u6_addr8) }
+impl From<&crate::in6_addr> for Ipv6Addr {
+    fn from(value: &crate::in6_addr) -> Self {
+        let converted = unsafe { transmute::<crate::in6_addr, libc::in6_addr>(*value) };
+
+        Ipv6Addr::from(converted.s6_addr)
     }
 }
 
@@ -104,25 +107,15 @@ impl Default for in_addr {
     }
 }
 
-impl Default for in6_addr {
+impl Default for crate::in6_addr {
     fn default() -> Self {
-        in6_addr {
-            __in6_u: in6_addr__bindgen_ty_1 {
-                __u6_addr8: [0u8; 16],
-            },
-        }
+        unsafe { std::mem::zeroed() }
     }
 }
 
 impl Default for host_addr {
     fn default() -> Self {
-        host_addr {
-            family: 0,
-            // use the ipv6 union variant because, as the largest, it defines the union size
-            address: host_addr__bindgen_ty_1 {
-                ipv6: in6_addr::default(),
-            },
-        }
+        unsafe { std::mem::zeroed() }
     }
 }
 
@@ -140,7 +133,7 @@ impl host_addr {
         host_addr {
             family: unsafe { bgp_afi2family(AFI_IP6 as c_int) } as u8,
             address: host_addr__bindgen_ty_1 {
-                ipv6: in6_addr::default(),
+                ipv6: crate::in6_addr::default(),
             },
         }
     }

@@ -1,6 +1,7 @@
-use crate::{host_addr, in6_addr, in_addr};
+use crate::{host_addr, in_addr};
 use libc::{c_int, AF_INET, AF_INET6};
 use std::fmt::{Debug, Display, Error, Formatter};
+use std::intrinsics::transmute;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 impl Display for in_addr {
@@ -9,19 +10,19 @@ impl Display for in_addr {
     }
 }
 
-impl Display for in6_addr {
+impl Display for crate::in6_addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&Ipv6Addr::from(self), f)
     }
 }
 
-impl Debug for in6_addr {
+impl Debug for crate::in6_addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("in6_addr");
 
         unsafe {
-            debug.field("__in6_u", &self.__in6_u.__u6_addr8);
-            debug.field("__in6_u(as Ipv6)", &self.to_string());
+            debug.field("inner bytes", &transmute::<Self, libc::in6_addr>(*self).s6_addr);
+            debug.field("inner bytes(as Ipv6)", &self.to_string());
         }
 
         debug.finish()
@@ -61,7 +62,8 @@ impl Display for host_addr {
                 )
             },
             AF_INET6 => unsafe {
-                Display::fmt(&Ipv6Addr::from(self.address.ipv6.__in6_u.__u6_addr8), f)
+                let ipv6 = transmute::<crate::in6_addr, libc::in6_addr>(self.address.ipv6);
+                Display::fmt(&Ipv6Addr::from(ipv6.s6_addr), f)
             },
             _ => Err(Error),
         }

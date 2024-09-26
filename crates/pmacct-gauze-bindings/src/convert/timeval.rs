@@ -1,11 +1,11 @@
-use crate::{__suseconds_t, timeval};
+use crate::timeval;
 use chrono::{DateTime, TimeZone, Utc};
 
 impl<T: TimeZone> From<&DateTime<T>> for timeval {
     fn from(value: &DateTime<T>) -> Self {
         Self {
             tv_sec: value.timestamp(),
-            tv_usec: __suseconds_t::from(value.timestamp_subsec_micros()),
+            tv_usec: libc::suseconds_t::from(value.timestamp_subsec_micros()),
         }
     }
 }
