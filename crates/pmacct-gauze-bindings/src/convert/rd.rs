@@ -4,7 +4,8 @@ use std::net::Ipv4Addr;
 use netgauze_bgp_pkt::nlri::RouteDistinguisher;
 
 use crate::{
-    bgp_rd_type_get, in_addr, rd_as, rd_as4, rd_ip, rd_t, RD_TYPE_AS, RD_TYPE_AS4, RD_TYPE_IP,
+    bgp_rd_type_get, in_addr, rd_as, rd_as4, rd_ip, rd_t, DefaultZeroed, RD_TYPE_AS, RD_TYPE_AS4,
+    RD_TYPE_IP,
 };
 
 impl From<RouteDistinguisher> for rd_t {
@@ -69,13 +70,4 @@ impl From<rd_t> for RouteDistinguisher {
     }
 }
 
-#[allow(clippy::derivable_impls)]
-impl Default for rd_t {
-    fn default() -> Self {
-        rd_t {
-            type_: 0,
-            as_: 0,
-            val: 0,
-        }
-    }
-}
+impl DefaultZeroed for rd_t {}

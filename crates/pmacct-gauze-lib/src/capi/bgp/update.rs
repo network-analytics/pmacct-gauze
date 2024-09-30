@@ -1,8 +1,3 @@
-use std::fmt::{Debug, Formatter};
-use std::io::BufWriter;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::ptr;
-
 use ipnet::Ipv4Net;
 use netgauze_bgp_pkt::nlri::{MplsLabel, RouteDistinguisher};
 use netgauze_bgp_pkt::path_attribute::{
@@ -11,16 +6,19 @@ use netgauze_bgp_pkt::path_attribute::{
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
-
 use pmacct_gauze_bindings::convert::TryConvertInto;
 use pmacct_gauze_bindings::{
-    afi_t, aspath, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community, community_add_val,
-    community_intern, community_new, ecommunity, ecommunity_add_val, ecommunity_intern,
-    ecommunity_new, ecommunity_val, host_addr, in_addr, lcommunity, lcommunity_add_val,
-    lcommunity_intern, lcommunity_new, lcommunity_val, path_id_t, prefix, rd_as, rd_t, safi_t,
-    AFI_IP, BGP_BMAP_ATTR_AIGP, BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC,
-    BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, SAFI_UNICAST,
+    afi_t, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community_add_val, community_intern,
+    community_new, ecommunity_add_val, ecommunity_intern, ecommunity_new, ecommunity_val,
+    host_addr, in_addr, lcommunity_add_val, lcommunity_intern, lcommunity_new, lcommunity_val,
+    path_id_t, prefix, rd_as, rd_t, safi_t, DefaultZeroed, AFI_IP, BGP_BMAP_ATTR_AIGP,
+    BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_EOR, BGP_NLRI_UPDATE,
+    BGP_NLRI_WITHDRAW, BGP_ORIGIN_UNKNOWN, SAFI_UNICAST,
 };
+use std::fmt::{Debug, Formatter};
+use std::io::BufWriter;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::ptr;
 
 use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
 use crate::capi::bmp::WrongBmpMessageTypeError;
@@ -98,26 +96,6 @@ impl Debug for ProcessPacket {
         debug.field("safi", &self.safi);
 
         debug.finish()
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct BgpParsedAttributes {
-    aspath: *mut aspath,
-    community: *mut community,
-    ecommunity: *mut ecommunity,
-    lcommunity: *mut lcommunity,
-}
-
-impl Default for BgpParsedAttributes {
-    fn default() -> Self {
-        Self {
-            aspath: ptr::null_mut(),
-            community: ptr::null_mut(),
-            ecommunity: ptr::null_mut(),
-            lcommunity: ptr::null_mut(),
-        }
     }
 }
 
@@ -437,7 +415,7 @@ pub fn process_mp_reach(
     }
 }
 
-fn process_attributes(
+pub fn process_attributes(
     peer: *mut bgp_peer,
     attributes: &Vec<PathAttribute>,
 ) -> (
@@ -456,8 +434,8 @@ fn process_attributes(
         lcommunity: ptr::null_mut(),
         refcnt: 0,
         rpki_maxlen: 0,
-        nexthop: in_addr::default(),
-        mp_nexthop: host_addr::default(),
+        nexthop: in_addr::default_zeroed(),
+        mp_nexthop: host_addr::default_zeroed(),
         med: 0,        // uninit protected with bitmap
         local_pref: 0, // uninit protected with bitmap
         origin: BGP_ORIGIN_UNKNOWN as u8,
@@ -639,6 +617,7 @@ fn process_attributes(
     (mp_reach, mp_unreach, attr, attr_extra)
 }
 
+// TODO rename; make this a bgp function and a wrapper in bmp module
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,
@@ -709,30 +688,19 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
     }
 
     // Handle EoR
-    if update.nlri().is_empty() && update.withdraw_routes().is_empty() {
-        let afi_safi = if update.path_attributes().is_empty() {
-            Some((AFI_IP as afi_t, SAFI_UNICAST as safi_t))
-        } else if mp_unreach.is_some() {
-            Some((
-                mp_unreach.unwrap().afi() as afi_t,
-                mp_unreach.unwrap().safi() as safi_t,
-            ))
-        } else {
-            // If we have no NLRI, and no MP_UNREACH, it is not an EoR, there's probably an MP_REACH in there
-            None
-        };
+    if let Some(address_type) = update.end_of_rib() {
+        let afi = address_type.address_family() as afi_t;
+        let safi = address_type.subsequent_address_family() as safi_t;
 
-        if let Some((afi, safi)) = afi_safi {
-            packets.push(ProcessPacket {
-                update_type: 0,
-                afi,
-                safi,
-                prefix: prefix::from(&Ipv4Net::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
-                attr,
-                attr_extra,
-            });
-        }
-    };
+        packets.push(ProcessPacket {
+            update_type: BGP_NLRI_EOR,
+            afi,
+            safi,
+            prefix: prefix::from(&Ipv4Net::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()), // This field should not be used
+            attr,
+            attr_extra,
+        });
+    }
 
     BgpUpdateResult::Ok(ParsedBgpUpdate {
         update_count: packets
@@ -781,9 +749,10 @@ fn fill_rd(attr_extra: &mut bgp_attr_extra, rd: RouteDistinguisher) {
     attr_extra.rd.set_pmacct_rd_origin(RdOriginType::BGP);
 }
 
+/// Cleanup NLRI specific attributes
 fn cleanup_mp_reach(attr: &mut bgp_attr, attr_extra: &mut bgp_attr_extra) {
-    attr.nexthop = in_addr::default();
-    attr.mp_nexthop = host_addr::default();
+    attr.nexthop = in_addr::default_zeroed();
+    attr.mp_nexthop = host_addr::default_zeroed();
 
     attr_extra.path_id = 0;
     attr_extra.label = [0, 0, 0];

@@ -21,7 +21,10 @@ impl Debug for crate::in6_addr {
         let mut debug = f.debug_struct("in6_addr");
 
         unsafe {
-            debug.field("inner bytes", &transmute::<Self, libc::in6_addr>(*self).s6_addr);
+            debug.field(
+                "inner bytes",
+                &transmute::<Self, libc::in6_addr>(*self).s6_addr,
+            );
             debug.field("inner bytes(as Ipv6)", &self.to_string());
         }
 

@@ -45,8 +45,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "FP_ZERO".into(),
             "IPPORT_RESERVED".into(),
         ]
-            .into_iter()
-            .collect(),
+        .into_iter()
+        .collect(),
     );
 
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));

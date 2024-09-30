@@ -3,11 +3,13 @@ use std::fmt::{Display, Formatter};
 use std::ptr;
 
 use libc::{AF_INET, AF_INET6};
-use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
 use netgauze_bmp_pkt::iana::BmpMessageType;
+use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
 use netgauze_parse_utils::WritablePdu;
 
-use pmacct_gauze_bindings::{bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t};
+use pmacct_gauze_bindings::{
+    bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t, DefaultZeroed,
+};
 
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
@@ -162,13 +164,13 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
                     rd.set_pmacct_rd_origin(RdOriginType::BMP);
                     rd
                 })
-                .unwrap_or_else(rd_t::default),
+                .unwrap_or_else(rd_t::default_zeroed),
             tlvs: ptr::null_mut(), // TODO only used in bmp RM, make a Rust function like for init and fill field in C
         },
         tstamp: peer_hdr
             .timestamp()
             .map(timeval::from)
-            .unwrap_or_else(timeval::default),
+            .unwrap_or_else(timeval::default_zeroed),
         tstamp_arrival: timeval::now(),
     })
 }

@@ -1,4 +1,4 @@
-use crate::timeval;
+use crate::{timeval, DefaultZeroed};
 use chrono::{DateTime, TimeZone, Utc};
 
 impl<T: TimeZone> From<&DateTime<T>> for timeval {
@@ -10,15 +10,7 @@ impl<T: TimeZone> From<&DateTime<T>> for timeval {
     }
 }
 
-#[allow(clippy::derivable_impls)]
-impl Default for timeval {
-    fn default() -> Self {
-        Self {
-            tv_sec: 0,
-            tv_usec: 0,
-        }
-    }
-}
+impl DefaultZeroed for timeval {}
 
 impl timeval {
     pub fn now() -> Self {

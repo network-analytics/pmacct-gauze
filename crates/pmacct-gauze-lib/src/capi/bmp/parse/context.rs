@@ -106,11 +106,7 @@ pub extern "C" fn netgauze_context_cache_delete(
 
 #[cfg(test)]
 mod test {
-    use pmacct_gauze_bindings::{
-        bgp_peer, bgp_peer_buf, bgp_peer_stats, bgp_xconnect, bmp_peer, cap_per_af, host_addr,
-        host_addr__bindgen_ty_1, host_mask, host_mask__bindgen_ty_1, in_addr, log_notification,
-        sockaddr_storage,
-    };
+    use pmacct_gauze_bindings::bmp_peer;
 
     use crate::capi::bmp::parse::{
         netgauze_context_cache_set, netgauze_make_Opaque_BmpParsingContext,
