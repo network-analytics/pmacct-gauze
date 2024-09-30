@@ -60,6 +60,7 @@ impl<T> From<WrongBmpMessageTypeError> for CResult<T, WrongBmpMessageTypeError> 
 /// The `CSlice<bmp_log_tlv>` must be manually freed with [CSlice_free_bmp_log_tlv]
 pub type BmpTlvListResult = CResult<CSlice<bmp_log_tlv>, WrongBmpMessageTypeError>;
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_get_tlvs(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
@@ -121,6 +122,7 @@ free_cslice_t!(bmp_log_tlv);
 
 pub type BmpPeerHdrDataResult = CResult<bmp_data, WrongBmpMessageTypeError>;
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,

@@ -16,6 +16,7 @@ make_default!(Opaque<BmpParsingContext>, Opaque_BmpParsingContext);
 
 free_rust_raw_box!(Opaque<BmpParsingContext>, Opaque_BmpParsingContext);
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parsing_context_add_default(
     bmp_parsing_context: *mut Opaque<BmpParsingContext>,
@@ -29,6 +30,7 @@ pub extern "C" fn netgauze_bmp_parsing_context_add_default(
     bmp_parsing_context.add_peer(key, Default::default());
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parsing_context_delete(
     bmp_parsing_context: *mut Opaque<BmpParsingContext>,
@@ -66,6 +68,7 @@ impl DerefMut for ContextCache {
     }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_context_cache_set(
     opaque_context_cache: *mut Opaque<ContextCache>,
@@ -81,6 +84,7 @@ pub extern "C" fn netgauze_context_cache_set(
     netgauze_context_cache_get(opaque_context_cache, context_cache_key)
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_context_cache_get(
     opaque_context_cache: *mut Opaque<ContextCache>,
@@ -95,6 +99,7 @@ pub extern "C" fn netgauze_context_cache_get(
     }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_context_cache_delete(
     opaque_context_cache: *mut Opaque<ContextCache>,

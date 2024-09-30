@@ -32,6 +32,7 @@ pub mod opaque;
 
 /// Shorthand for dropping a Box that was turned into a raw pointer
 #[inline]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn drop_rust_raw_box<T>(pointer: *mut T) {
     unsafe { drop(Box::from_raw(pointer)) }
 }

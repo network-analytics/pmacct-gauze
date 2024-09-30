@@ -50,6 +50,7 @@ pub extern "C" fn netgauze_bmp_parse_packet(buffer: *const c_char, buf_len: u32)
 }
 
 /// The `bmp_parsing_context` pointer is mutated but not consumed.
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parse_packet_with_context(
     buffer: *const c_char,

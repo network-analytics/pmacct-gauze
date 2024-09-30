@@ -30,6 +30,7 @@ pub struct ParsedBgp {
     pub message: *mut Opaque<BgpMessage>,
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_parse_packet(
     buffer: *const c_char,

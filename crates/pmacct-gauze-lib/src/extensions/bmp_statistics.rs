@@ -1,12 +1,22 @@
 use netgauze_bmp_pkt::StatisticsCounter;
 use netgauze_iana::address_family::AddressType;
-
 use pmacct_gauze_bindings::convert::TryConvertFrom;
 use pmacct_gauze_bindings::{afi_t, safi_t};
+use std::error::Error;
+use std::fmt::Display;
+
+#[derive(Debug)]
+pub struct StatHasNoNumericalValue;
+impl Error for StatHasNoNumericalValue {}
+impl Display for StatHasNoNumericalValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Stat contains no numerical value")
+    }
+}
 
 pub trait ExtendBmpStatistics {
     fn get_afi_safi(&self) -> Result<Option<(afi_t, safi_t)>, AddressType>;
-    fn get_value_as_u64(&self) -> Result<u64, ()>;
+    fn get_value_as_u64(&self) -> Result<u64, StatHasNoNumericalValue>;
 }
 
 impl ExtendBmpStatistics for StatisticsCounter {
@@ -58,7 +68,7 @@ impl ExtendBmpStatistics for StatisticsCounter {
         }
     }
 
-    fn get_value_as_u64(&self) -> Result<u64, ()> {
+    fn get_value_as_u64(&self) -> Result<u64, StatHasNoNumericalValue> {
         match self {
             StatisticsCounter::NumberOfPrefixesRejectedByInboundPolicy(stat) => {
                 Ok(stat.value() as u64)
@@ -104,7 +114,7 @@ impl ExtendBmpStatistics for StatisticsCounter {
             | StatisticsCounter::Experimental65532(_)
             | StatisticsCounter::Experimental65533(_)
             | StatisticsCounter::Experimental65534(_)
-            | StatisticsCounter::Unknown(_, _) => Err(()),
+            | StatisticsCounter::Unknown(_, _) => Err(StatHasNoNumericalValue),
         }
     }
 }

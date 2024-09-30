@@ -16,6 +16,7 @@ pub type BmpStatsResult = CResult<CSlice<bmp_log_stats>, WrongBmpMessageTypeErro
 free_cslice_t!(bmp_log_stats);
 
 /// This function does not consume the `bmp_message_value_opaque` pointer
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_stats_get_stats(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
@@ -64,7 +65,7 @@ pub extern "C" fn netgauze_bmp_stats_get_stats(
         // This error will only happen for experimental values since Unknown has already been filtered out in cnt_type
         let cnt_data = match stat.get_value_as_u64() {
             Ok(value) => value,
-            Err(()) => {
+            Err(_) => {
                 pmacct_log(
                     LogPriority::Warning,
                     &format!(

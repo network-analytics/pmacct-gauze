@@ -33,6 +33,7 @@ use crate::opaque::Opaque;
 
 free_cslice_t!(u8);
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
     bmp_rm: *const Opaque<BmpMessageValue>,
@@ -415,7 +416,7 @@ pub fn process_mp_reach(
     }
 }
 
-pub fn process_attributes(
+pub(crate) fn process_attributes(
     peer: *mut bgp_peer,
     attributes: &Vec<PathAttribute>,
 ) -> (
@@ -618,6 +619,7 @@ pub fn process_attributes(
 }
 
 // TODO rename; make this a bgp function and a wrapper in bmp module
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,

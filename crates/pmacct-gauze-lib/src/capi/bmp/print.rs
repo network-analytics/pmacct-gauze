@@ -19,6 +19,7 @@ pub extern "C" fn netgauze_bmp_print_packet(buffer: *const libc::c_char, len: u3
     0
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_print_message(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,

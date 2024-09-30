@@ -10,6 +10,7 @@ use crate::opaque::Opaque;
 
 pub type BmpPeerUpHdrResult = CResult<bmp_log_peer_up, WrongBmpMessageTypeError>;
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_up_get_hdr(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
@@ -41,6 +42,7 @@ pub struct BmpPeerUpOpen {
 
 pub type BmpPeerUpOpenResult = CResult<BmpPeerUpOpen, WrongBmpMessageTypeError>;
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_up_get_open_rx(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
@@ -60,6 +62,7 @@ pub extern "C" fn netgauze_bmp_peer_up_get_open_rx(
     })
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_up_get_open_tx(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
@@ -82,6 +85,7 @@ pub extern "C" fn netgauze_bmp_peer_up_get_open_tx(
 
 pub type BmpPeerDownInfoResult = CResult<bmp_log_peer_down, WrongBmpMessageTypeError>;
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_peer_down_get_info(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,

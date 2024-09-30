@@ -24,6 +24,7 @@ pub enum BgpOpenProcessError {
 
 pub type BgpOpenProcessResult = CResult<usize, BgpOpenProcessError>;
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_process_open(
     bgp_msg: *const Opaque<BgpMessage>,

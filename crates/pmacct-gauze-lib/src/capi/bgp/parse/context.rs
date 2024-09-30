@@ -18,6 +18,7 @@ pub type BgpParsingContextResult = CResult<*mut Opaque<BgpParsingContext>, Unsup
 
 free_rust_raw_box!(Opaque<BgpParsingContext>, OpaqueBgpParsingContext);
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_make_bgp_parsing_context(
     asn4: bool,
