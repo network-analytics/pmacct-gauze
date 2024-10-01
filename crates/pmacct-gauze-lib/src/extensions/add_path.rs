@@ -4,7 +4,6 @@ use pmacct_gauze_bindings::convert::TryConvertInto;
 use pmacct_gauze_bindings::{afi_t, cap_per_af, safi_t};
 use std::collections::HashMap;
 
-#[allow(dead_code)]
 #[repr(u8)]
 pub enum AddPathCapabilityValue {
     Unset = 0,
