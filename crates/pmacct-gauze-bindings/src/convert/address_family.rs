@@ -53,12 +53,12 @@ impl TryConvertFrom<AddressType> for (afi_t, safi_t) {
     type Error = ();
 
     fn try_convert_from(address_type: AddressType) -> Result<Self, Self::Error> {
-        if let Ok(afi) = afi_t::try_convert_from(address_type.address_family())
-            && let Ok(safi) = safi_t::try_convert_from(address_type.subsequent_address_family())
-        {
-            Ok((afi, safi))
-        } else {
-            Err(())
+        match (
+            afi_t::try_convert_from(address_type.address_family()),
+            safi_t::try_convert_from(address_type.subsequent_address_family()),
+        ) {
+            (Ok(afi), Ok(safi)) => Ok((afi, safi)),
+            _ => Err(()),
         }
     }
 }

@@ -1,4 +1,5 @@
 use core::mem::size_of;
+use std::mem::ManuallyDrop;
 use std::ptr;
 
 /// [CSlice<T>] represents a contiguous chunk of memory like an array.
@@ -39,7 +40,9 @@ where
 impl<T> CSlice<T> {
     /// Turn a [Vec<T>] into a [CSlice<T>] to send it over to C
     pub fn from_vec(value: Vec<T>) -> Self {
-        let (ptr, len, cap) = value.into_raw_parts();
+        // TODO replace by [Vec::into_raw_parts] when the vec_into_raw_parts feature is stable
+        let mut value = ManuallyDrop::new(value);
+        let (ptr, len, cap) = (value.as_mut_ptr(), value.len(), value.capacity());
         CSlice {
             base_ptr: ptr,
             stride: size_of::<T>(),

@@ -1,7 +1,3 @@
-#![feature(try_trait_v2)]
-#![feature(vec_into_raw_parts)]
-#![feature(let_chains)]
-
 // TODO add documentation to specify which *mut pointers are consumed or not
 // TODO add testing that validates return values using C functions for conversions
 // TODO derive macro for automatic c function print for structs/enums implementation

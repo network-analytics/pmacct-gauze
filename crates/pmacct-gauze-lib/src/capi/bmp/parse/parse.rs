@@ -75,7 +75,10 @@ pub extern "C" fn netgauze_bmp_parse_packet_with_context(
                 len: read_bytes,
                 type_: msg.get_type().into(),
             },
-            peer_header: msg.get_pmacct_peer_hdr()?.into(),
+            peer_header: match msg.get_pmacct_peer_hdr() {
+                Ok(ok) => ok.into(),
+                Err(err) => return CResult::Err(err),
+            },
             message: make_rust_raw_box_pointer(match msg {
                 BmpMessage::V3(value) => Opaque::from(value),
             }),
