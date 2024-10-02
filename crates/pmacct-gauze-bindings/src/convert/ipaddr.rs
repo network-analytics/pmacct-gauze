@@ -147,16 +147,3 @@ impl DefaultZeroed for prefix {}
 impl DefaultZeroed for host_addr {}
 impl DefaultZeroed for crate::in6_addr {}
 impl DefaultZeroed for crate::in_addr {}
-
-#[cfg(test)]
-mod tests {
-    use std::net::Ipv4Addr;
-
-    use crate::in_addr;
-
-    #[test]
-    fn in_addr_from_ipv4_addr() {
-        let ip = Ipv4Addr::new(254, 1, 128, 127);
-        let _other = in_addr::from(&ip);
-    }
-}

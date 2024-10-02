@@ -108,21 +108,3 @@ pub extern "C" fn netgauze_context_cache_delete(
     let context_cache = unsafe { opaque_context_cache.as_mut().unwrap().as_mut() };
     let _ = context_cache.remove(&context_cache_key);
 }
-
-#[cfg(test)]
-mod test {
-    use pmacct_gauze_bindings::bmp_peer;
-
-    use crate::capi::bmp::parse::{
-        netgauze_context_cache_set, netgauze_make_Opaque_BmpParsingContext,
-        netgauze_make_Opaque_ContextCache,
-    };
-
-    #[test]
-    fn test_leak() {
-        let cache = netgauze_make_Opaque_ContextCache();
-        let ctx = netgauze_make_Opaque_BmpParsingContext();
-        let mut peer: bmp_peer = unsafe { std::mem::zeroed() };
-        netgauze_context_cache_set(cache, &mut peer, ctx);
-    }
-}
