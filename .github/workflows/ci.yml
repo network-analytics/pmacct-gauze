@@ -15,7 +15,9 @@ jobs:
 
     env:
       # Set PMACCT_INCLUDE_DIR to the parent directory of the pmacct folder
+      ROOT: ${{ github.workspace }}
       PMACCT_INCLUDE_DIR: ${{ github.workspace }}
+      PMACCT_GAUZE_BUILD_DIR: "${{ github.workspace }}/build-target"
 
     steps:
       # Step 1: Checkout pmacct-gauze repository (this repository) on master branch
@@ -54,20 +56,18 @@ jobs:
       # Step 4: Clone and install libcdada
       - name: Install libcdada
         run: |
-          cd pmacct/src/external_libs/libcdada
+          cd "$ROOT/pmacct/src/external_libs/libcdada"
           ./autogen.sh
           ./configure
           make -j8
           sudo make install
-          cd ../../../..
 
       # Step 5: Configure pmacct (generate pmacct-version.h)
       - name: Configure pmacct (initial)
         run: |
-          cd pmacct
+          cd "$ROOT/pmacct"
           ./autogen.sh
           ./configure
-          cd ..
 
       # Step 6: Set up Rust (switch to nightly toolchain)
       - name: Install Rust (nightly)
@@ -84,22 +84,31 @@ jobs:
       # Step 8: Build pmacct-gauze
       - name: Build pmacct-gauze
         run: |
-          export PMACCT_INCLUDE_DIR=$(realpath ${{ github.workspace }})
-          TEMPDESTDIR="${{ github.workspace }}/build-target"
-          cargo cinstall --destdir=$TEMPDESTDIR -vv --package pmacct-gauze-lib
-          sudo cp -r $TEMPDESTDIR/* /
+          cd "$ROOT"
+          # install library to temporary folder because of permission issues
+          cargo cinstall --destdir=$PMACCT_GAUZE_BUILD_DIR -vv --package pmacct-gauze-lib
+          # copy library manually to /usr/local/[include/lib]
+          sudo cp -r $PMACCT_GAUZE_BUILD_DIR/* /
+          # update library cache
           sudo ldconfig
+
+      - name: Upload generated artifact
+        uses: actions/upload-artifact@v4
+        id: upload-generated-artifact
+        with:
+          name: build-output
+          path: ${{ env.PMACCT_GAUZE_BUILD_DIR }} # Path to build artifact
 
       # Step 9: Clean up the pmacct repository (remove libcdada)
       - name: Clean up pmacct repository
         run: |
-          cd pmacct
+          cd "$ROOT/pmacct"
           rm -rf src/external_libs/libcdada
 
       # Step 10: Configure and build pmacct with pmacct-gauze enabled
       - name: Build pmacct with pmacct-gauze
         run: |
-          cd pmacct
+          cd "$ROOT/pmacct"
           ./configure --enable-pmacct-gauze
           sudo make -j8 install
 
