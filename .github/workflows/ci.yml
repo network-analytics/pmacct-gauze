@@ -1,0 +1,132 @@
+name: Build and Lint pmacct-gauze
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule: [ cron: "40 1 * * *" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      # Set PMACCT_INCLUDE_DIR to the parent directory of the pmacct folder
+      PMACCT_INCLUDE_DIR: ${{ github.workspace }}
+
+    steps:
+      # Step 1: Checkout pmacct-gauze repository (this repository) on master branch
+      - name: Checkout pmacct-gauze repository
+        uses: actions/checkout@v3
+        with:
+          ref: master
+
+      # Step 2: Clone the pmacct project and checkout netgauze-exp branch
+      - name: Clone pmacct repository on branch netgauze-exp
+        run: |
+          git clone --recurse-submodules -b netgauze-exp https://github.com/mxyns/pmacct/
+
+      # Step 3: Set up C environment (libcdada and pmacct dependencies)
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            libtool \
+            pkg-config \
+            libpcap-dev \
+            libnetfilter-queue-dev \
+            libjson-c-dev \
+            libmnl-dev \
+            libnftnl-dev \
+            automake \
+            make \
+            bash \
+            libstdc++-11-dev \
+            g++ \
+            git \
+            tree
+
+      # Step 4: Clone and install libcdada
+      - name: Install libcdada
+        run: |
+          cd pmacct/src/external_libs/libcdada
+          ./autogen.sh
+          ./configure
+          make -j8
+          sudo make install
+          cd ../../../..
+
+      # Step 5: Configure pmacct (generate pmacct-version.h)
+      - name: Configure pmacct (initial)
+        run: |
+          cd pmacct
+          ./autogen.sh
+          ./configure
+          cd ..
+
+      # Step 6: Set up Rust (switch to nightly toolchain)
+      - name: Install Rust (nightly)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      # Step 7: Install your custom fork of cargo-c
+      - name: Install cargo-c
+        run: |
+          cargo install --git https://github.com/mxyns/cargo-c cargo-c
+
+      # Step 8: Build pmacct-gauze
+      - name: Build pmacct-gauze
+        run: |
+          export PMACCT_INCLUDE_DIR=$(realpath ${{ github.workspace }})
+          TEMPDESTDIR="${{ github.workspace }}/build-target"
+          cargo cinstall --destdir=$TEMPDESTDIR -vv --package pmacct-gauze-lib
+          sudo cp -r $TEMPDESTDIR/* /
+          sudo ldconfig
+
+      # Step 9: Clean up the pmacct repository (remove libcdada)
+      - name: Clean up pmacct repository
+        run: |
+          cd pmacct
+          rm -rf src/external_libs/libcdada
+
+      # Step 10: Configure and build pmacct with pmacct-gauze enabled
+      - name: Build pmacct with pmacct-gauze
+        run: |
+          cd pmacct
+          ./configure --enable-pmacct-gauze
+          sudo make -j8 install
+
+      # Step 11: Check Rust code formatting with rustfmt
+      - name: Run rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
+
+      # Step 12: Run clippy to check for lints
+      - name: Run clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --tests --all-targets --all-features -- --deny warnings
+
+      # Step 13: Check that document
+      - name: Documentation
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --workspace --all-features
+
+      # Step 14: Run tests
+      - name: Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --all-features
