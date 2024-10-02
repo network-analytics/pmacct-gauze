@@ -1,8 +1,14 @@
 #!/bin/bash
 current_dir=$(pwd)
-target_dir="/usr/local/include/pmacct"
 
 source_dir=$1
+target_dir=$2
+
+if [ -z "$1" ]
+  then
+    target_dir="/usr/local/include/pmacct"
+fi
+
 
 echo "This script will clear $target_dir and move all .h files from $source_dir into it while preserving the tree structure"
 

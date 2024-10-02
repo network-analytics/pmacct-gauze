@@ -10,36 +10,102 @@ at https://github.com/mxyns/pmacct/tree/netgauze-exp.
 
 ### Prerequisites
 
-- working C environment and Rust on the `nightly` channel
-- [cargo-c](https://crates.io/crates/cargo-c)
-    - install my fork `cargo install --git https://github.com/mxyns/cargo-c cargo-c` until
-      this [PR](https://github.com/mozilla/cbindgen/pull/785) has been merged
-- pmacct headers installed (see [install script](tools/install_pmacct_headers.sh))
-    - or use the `PMACCT_INCLUDE_DIR` env variable to set the location of the headers.
+- working C and Rust environments with Rust toolchain on the `nightly` channel
 
-### Build and install pmacct-gauze
+### Build and install pmacct-gauze with pmacct
 
-`cargo cinstall -vv --package pmacct-gauze-lib`
-use `-vv` for very verbose output.
+#### Build locally
 
-Now the library and the headers are installed on your machine. It's time to build pmacct with pmacct-gauze.
+Read and then run this.
 
-### Build and install pmacct with pmacct-gauze
+```bash
+git clone --recurse-submodules -b netgauze-exp https://github.com/mxyns/pmacct/ 
+cd pmacct
 
-Use this version of pmacct: https://github.com/mxyns/pmacct/tree/netgauze-exp
+# Install libcdada manually. libcdada headers are needed for the pmacct headers to be valid
+cd src/external_libs/libcdada && ./autogen.sh && ./configure && make -j8 install
+cd ../../.. # Back to pmacct
 
-Follow pmacct build instructions, configure with `--enable-pmacct-gauze` and build pmacct.
-pmacct-gauze should be linked automatically using pkg-config.
+# Go and install all pmacct dependencies listed in the pmacct documentation.
+# I will not list them here since they may change
 
-### Run pmacct
+# Configure pmacct once without pmacct-gauze to generate pmacct-version.h
+# Also needed for the headers to be valid
+./autogen.sh && ./configure
+cd .. # Back to root
 
-Just run pmacct. I use the following when developing pmacct-gauze, use whatever suits you best in your environment.
+# Install my fork of [cargo-c](https://crates.io/crates/cargo-c)
+cargo install --git https://github.com/mxyns/cargo-c cargo-c
 
-```shell
-sudo make install -j8 && valgrind --leak-check=full pmbmpd -I ~/bmp-community-ecommunity-frr-clean.pcapng -f ./config -o /tmp/bmp.log
+# Clone and install pmacct-gauze
+# Here you will need to already be logged in, or login since the repository is private 
+git clone https://github.com/mxyns/pmacct-gauze
+cd pmacct-gauze
+
+# /!\ IMPORTANT /!\
+# Here pmacct-gauze needs to have access the pmacct headers.
+# One way is to install them using the pmacct headers install script 
+# ./tools/install_pmacct_headers.sh <source> [target]
+#   - source here would be "../pmacct"
+#   - target, in general (and by default) is "/usr/local/include/pmacct"
+# Another way is to use the `PMACCT_INCLUDE_DIR` env variable to set the location of the headers
+# before building pmacct-gauze. Useful when developing.
+# This can be done either in pmacct-gauze/.cargo/config.toml or via command line
+export PMACCT_INCLUDE_DIR=$(realpath ..); cargo cinstall -vv --package pmacct-gauze-lib
+ldconfig # Force library cache update
+cd .. # Back to root
+
+# Manually cleanup the pmacct repository 
+cd pmacct && rm -rf src/external_libs/libcdada
+
+# Configure and install pmacct, but with pmacct-gauze enabled now  
+./configure --enable-pmacct-gauze # Add whatever other flags you need here
+make -j8 install
 ```
 
+#### Docker
+
+Docker images can be built
+from [Dockerfile](https://github.com/mxyns/pmacct/blob/netgauze-exp/docker/pmacct-gauze-base/Dockerfile)
+
 ## Conventions
+
+### Avoiding circular dependencies
+
+Circular dependencies in the headers between pmacct-gauze and pmacct can happen.
+In order to avoid them, all items that need to be ignored by pmacct must be wrapped in
+an `#ifndef PMACCT_GAUZE_BUILD` guard.
+Items that need to be ignored are, non-exhaustively:
+
+- pmacct-gauze header inclusions
+- method declarations and definitions that use pmacct-gauze types
+
+Example from pmacct/src/bmp/bmp_msg.h:
+
+```c
+struct SomeStructUnrelatedToPmacctGauze {
+    // fields...
+};
+
+#ifndef PMACCT_GAUZE_BUILD
+#include "pmacct_gauze_lib/pmacct_gauze_lib.h"
+
+extern u_int32_t bmp_process_packet(char *, u_int32_t, struct bmp_peer *, int *);
+extern void bmp_process_msg_init(struct bmp_peer *, ParsedBmp *);
+extern void bmp_process_msg_term(struct bmp_peer *, const ParsedBmp *);
+extern void bmp_process_msg_peer_up(struct bmp_peer *, const ParsedBmp *);
+extern void bmp_process_msg_peer_down(struct bmp_peer *, const ParsedBmp *);
+extern void bmp_process_msg_stats(struct bmp_peer *, const ParsedBmp *);
+extern void bmp_process_msg_route_monitor(struct bmp_peer *, const ParsedBmp *);
+extern void bmp_process_msg_route_mirror(struct bmp_peer *);
+
+extern Opaque_BmpParsingContext *bmp_parsing_context_get(struct bmp_peer *bmp_peer);
+extern Opaque_ContextCache *bmp_context_cache_get();
+extern void bmp_parsing_context_clear(struct bmp_peer *bmp_peer);
+#endif
+
+#endif //BMP_MSG_H
+```
 
 ### Memory Allocation
 
