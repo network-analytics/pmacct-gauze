@@ -2,7 +2,7 @@ use core::mem::size_of;
 use std::mem::ManuallyDrop;
 use std::ptr;
 
-/// [CSlice<T>] represents a contiguous chunk of memory like an array.
+/// [`CSlice<T>`] represents a contiguous chunk of memory like an array.
 #[repr(C)]
 #[derive(Debug)]
 pub struct CSlice<T> {
@@ -16,7 +16,7 @@ pub struct CSlice<T> {
 /// Custom [Drop] trait to ensure correct behaviour with [CSlice::rust_free]
 ///
 /// This trait is the equivalent of [Drop] but for Rust allocated items
-/// that are not tracked anymore ([Box::into_raw], [Vec::into_raw]) or need
+/// that are not tracked anymore ([Box::into_raw], [Vec::into_raw_parts]) or need
 /// special treatment (a struct containing a raw [ptr] for example).
 ///
 /// We do not use drop because it is implemented by default for all types,
@@ -38,7 +38,7 @@ where
 }
 
 impl<T> CSlice<T> {
-    /// Turn a [Vec<T>] into a [CSlice<T>] to send it over to C
+    /// Turn a [`Vec<T>`] into a [`CSlice<T>`] to send it over to C
     pub fn from_vec(value: Vec<T>) -> Self {
         // TODO replace by [Vec::into_raw_parts] when the vec_into_raw_parts feature is stable
         let mut value = ManuallyDrop::new(value);
@@ -52,7 +52,7 @@ impl<T> CSlice<T> {
         }
     }
 
-    /// Turn a [CSlice<T>] back into a [Vec<T>]
+    /// Turn a [`CSlice<T>`] back into a [`Vec<T>`]
     /// # Safety
     /// see [Vec::from_raw_parts]
     pub unsafe fn to_vec(self) -> Vec<T> {

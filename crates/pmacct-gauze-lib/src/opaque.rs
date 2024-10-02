@@ -1,7 +1,7 @@
 /// Structure indicating that the contained type must be opaque to C.
 /// This can only be passed to/from C as raw pointers.
 ///
-/// Casting a raw pointer from/to *mut/const Opaque<T> to/from *mut/const T is safe
+/// Casting a raw pointer from/to *mut/const `Opaque<T>` to/from *mut/const T is safe
 /// thanks to the new-type pattern guarantees
 #[derive(Default, Debug, Clone)]
 pub struct Opaque<T>(T);

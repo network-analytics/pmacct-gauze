@@ -1,6 +1,6 @@
 pub use paste;
 
-/// Generate a function called `CSlice_free_T` for C to free a [crate::cslice::CSlice<T>] for type `T`.
+/// Generate a function called `CSlice_free_T` for C to free a [`crate::cslice::CSlice<T>`] for type `T`.
 ///
 /// This variant of the macro automatically implements [crate::cslice::RustFree] for the type `T`
 /// The automatic implementation for [crate::cslice::RustFree::rust_free] on `T` just drops the value
@@ -44,7 +44,7 @@ macro_rules! free_cslice_t {
 }
 pub use free_cslice_t;
 
-/// Generate a function called `CSlice_free_T` for C to free a [crate::cslice::CSlice<T>] for type `T`
+/// Generate a function called `CSlice_free_T` for C to free a [`crate::cslice::CSlice<T>`] for type `T`
 ///
 /// This macro work exactly as the macro [free_cslice_t] works
 /// without implementing [crate::cslice::RustFree] automatically for `T`.
@@ -94,7 +94,7 @@ pub use free_cslice_t_with_item_free;
 
 /// Generate a function called `netgauze_make_T` for C to allocate a [Default] value of `T` on the heap.
 ///
-/// The generated function makes a [Box::<T>] and turns it into a raw pointer to give to C using [crate::make_rust_raw_box_pointer].
+/// The generated function makes a [`Box::<T>`] and turns it into a raw pointer to give to C using [crate::make_rust_raw_box_pointer].
 /// The second parameter is used to change the name of `T` in the generated function name.
 /// It is mandatory if `T` itself is generic.
 ///
@@ -103,8 +103,14 @@ pub use free_cslice_t_with_item_free;
 /// use pmacct_gauze_lib::{make_default};
 /// use pmacct_gauze_lib::cslice::RustFree;
 /// use pmacct_gauze_lib::cslice::CSlice;
+///
+/// #[derive(Default)]
 /// struct Data;
-/// struct GenericStruct<S>;
+///
+/// #[derive(Default)]
+/// struct GenericStruct<S> {
+///     inner: S,
+/// }
 ///
 /// make_default!(Data);
 /// make_default!(GenericStruct<Data>, GenericStruct_Data);
@@ -127,7 +133,7 @@ pub use make_default;
 
 /// Generate a function called `netgauze_free_T` for C to free a value of `T` from the heap.
 ///
-/// The generated function takes a raw pointer [*mut T] made from a [Box::<T>], and drops it using [crate::drop_rust_raw_box].
+/// The generated function takes a raw pointer [*mut T] made from a [`Box::<T>`], and drops it using [crate::drop_rust_raw_box].
 /// The second parameter is used to change the name of `T` in the generated function name.
 /// It is mandatory if `T` itself is generic.
 ///
@@ -137,7 +143,9 @@ pub use make_default;
 /// use pmacct_gauze_lib::cslice::RustFree;
 /// use pmacct_gauze_lib::cslice::CSlice;
 /// struct Data;
-/// struct GenericStruct<S>;
+/// struct GenericStruct<S> {
+///     inner: S,
+/// }
 ///
 /// free_rust_raw_box!(Data);
 /// free_rust_raw_box!(GenericStruct<Data>, GenericStruct_Data);

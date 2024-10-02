@@ -4,7 +4,6 @@ pub mod rd;
 pub mod timeval;
 
 /// Equivalent of From/Into and TryFrom/TryInto but this trait is owned by the crate so we can implement it on any type
-
 pub trait ConvertFrom<T> {
     fn convert_from(value: T) -> Self;
 }

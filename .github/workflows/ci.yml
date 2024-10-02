@@ -118,14 +118,14 @@ jobs:
           args: --tests --all-targets --all-features -- --deny warnings
 
       # Step 13: Check that document
-      - name: Documentation
+      - name: Generate documentation
         uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --workspace --all-features
 
       # Step 14: Run tests
-      - name: Tests
+      - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test
