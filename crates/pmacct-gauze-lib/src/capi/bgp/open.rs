@@ -47,6 +47,8 @@ pub extern "C" fn netgauze_bgp_process_open(
     peer.id = host_addr::from(&open.bgp_id());
     peer.version = open.version(); // FIXME pmacct limits this to 4 only. same?
 
+    // TODO Router id check
+
     peer.as_ = open.my_asn4(); // this is either the asn4 or the as,
     if peer.as_ == AS_TRANS as u32 || peer.as_ == 0 {
         return CResult::Err(BgpOpenProcessError::BadPeerASN(peer.as_));

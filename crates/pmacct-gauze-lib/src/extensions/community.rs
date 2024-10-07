@@ -15,6 +15,7 @@ impl ExtendLargeCommunity for LargeCommunity {
     fn to_lcommunity_val(&self) -> lcommunity_val {
         let mut tmp = [0u8; LCOMMUNITY_SIZE as usize];
         {
+            // TODO make a method for LargeCommunity to_bytes
             let mut writer = BufWriter::new(tmp.as_mut_slice());
             if self.write(&mut writer).is_err() {
                 drop(writer);
@@ -38,6 +39,7 @@ impl ExtendExtendedCommunity for ExtendedCommunity {
     fn to_ecommunity_val(&self) -> ecommunity_val {
         let mut tmp = [0u8; ECOMMUNITY_SIZE as usize];
         {
+            // TODO make a method for ExtendedCommunity to_bytes
             let mut writer = BufWriter::new(tmp.as_mut_slice());
             if self.write(&mut writer).is_err() {
                 drop(writer);
