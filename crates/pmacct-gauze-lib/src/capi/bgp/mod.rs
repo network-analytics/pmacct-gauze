@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bgp_pkt::iana::BgpMessageType;
+use netgauze_bgp_pkt::BgpMessage;
 
 use pmacct_gauze_bindings::{
     aspath, aspath_free, aspath_reconcile_as4, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW,
@@ -11,15 +11,13 @@ use pmacct_gauze_bindings::{
 use crate::cresult::CResult;
 use crate::opaque::Opaque;
 
+pub mod notification;
 pub mod open;
 pub mod parse;
 pub mod update;
-pub mod notification;
 
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_print_message(
-    bgp_message: *const Opaque<BgpMessage>
-) {
+pub extern "C" fn netgauze_bgp_print_message(bgp_message: *const Opaque<BgpMessage>) {
     let bgp_message = unsafe { bgp_message.as_ref().unwrap().as_ref() };
     println!("{:#?}", bgp_message);
 }

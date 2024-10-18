@@ -9,13 +9,12 @@ pub struct ContextCache<K, V> {
 impl<K, V> Default for ContextCache<K, V> {
     fn default() -> Self {
         Self {
-            map: HashMap::default()
+            map: HashMap::default(),
         }
     }
 }
 
-impl<K, V> Deref for ContextCache<K, V>
-{
+impl<K, V> Deref for ContextCache<K, V> {
     type Target = HashMap<K, V>;
 
     fn deref(&self) -> &Self::Target {
@@ -23,8 +22,7 @@ impl<K, V> Deref for ContextCache<K, V>
     }
 }
 
-impl<K, V> DerefMut for ContextCache<K, V>
-{
+impl<K, V> DerefMut for ContextCache<K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
     }

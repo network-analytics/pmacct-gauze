@@ -91,7 +91,6 @@ impl<T> OwnedSlice<T> {
     }
 }
 
-
 /// [`BorrowedSlice<T>`] represents a borrowed contiguous chunk of memory like an array.
 /// /!\ WARNING /!\
 /// UNUSED AND NOT TESTED AT THE MOMENT

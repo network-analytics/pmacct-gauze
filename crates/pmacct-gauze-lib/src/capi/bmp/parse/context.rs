@@ -5,11 +5,11 @@ use netgauze_bmp_pkt::{BmpMessageValue, PeerKey};
 
 use pmacct_gauze_bindings::bmp_peer;
 
-use crate::{free_rust_raw_box, make_default};
 use crate::context_cache::ContextCache;
 use crate::extensions::bmp_message::ExtendBmpMessage;
 use crate::extensions::context::ExtendBmpParsingContext;
 use crate::opaque::Opaque;
+use crate::{free_rust_raw_box, make_default};
 
 pub type BmpContextCacheKey = *mut bmp_peer;
 pub type BmpContextCache = ContextCache<BmpContextCacheKey, BmpParsingContext>;
@@ -90,7 +90,10 @@ pub extern "C" fn netgauze_bmp_parsing_context_delete(
 mod test {
     use pmacct_gauze_bindings::bmp_peer;
 
-    use crate::capi::bmp::parse::{netgauze_bmp_context_cache_set, netgauze_make_Opaque_BmpContextCache, netgauze_make_Opaque_BmpParsingContext};
+    use crate::capi::bmp::parse::{
+        netgauze_bmp_context_cache_set, netgauze_make_Opaque_BmpContextCache,
+        netgauze_make_Opaque_BmpParsingContext,
+    };
 
     #[test]
     fn test_leak() {

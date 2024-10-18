@@ -4,9 +4,9 @@ use netgauze_bgp_pkt::wire::deserializer::BgpParsingContext;
 
 use pmacct_gauze_bindings::bgp_peer;
 
-use crate::{free_rust_raw_box, make_default};
 use crate::context_cache::ContextCache;
 use crate::opaque::Opaque;
+use crate::{free_rust_raw_box, make_default};
 
 pub type BgpContextCacheKey = *mut bgp_peer;
 pub type BgpContextCache = ContextCache<BgpContextCacheKey, BgpParsingContext>;

@@ -23,19 +23,17 @@ pub extern "C" fn netgauze_bgp_notification(
 
     let bgp_notification = match bgp_message {
         BgpMessage::Notification(notif) => notif,
-        _ => return WrongBgpMessageTypeError(bgp_message.get_type().into()).into()
+        _ => return WrongBgpMessageTypeError(bgp_message.get_type().into()).into(),
     };
 
     let code = bgp_notification.code() as u8;
     let subcode = bgp_notification.raw_subcode();
     let value = bgp_notification.value_ptr();
 
-    CResult::Ok(
-        BgpNotification {
-            code,
-            subcode,
-            value_len: value.len(),
-            value: value.as_ptr(),
-        }
-    )
+    CResult::Ok(BgpNotification {
+        code,
+        subcode,
+        value_len: value.len(),
+        value: value.as_ptr(),
+    })
 }

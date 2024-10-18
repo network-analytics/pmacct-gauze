@@ -5,7 +5,9 @@ use std::net::Ipv4Addr;
 use std::slice;
 
 use c_str_macro::c_str;
-use netgauze_bgp_pkt::capabilities::{AddPathAddressFamily, AddPathCapability, BgpCapability, FourOctetAsCapability};
+use netgauze_bgp_pkt::capabilities::{
+    AddPathAddressFamily, AddPathCapability, BgpCapability, FourOctetAsCapability,
+};
 use netgauze_bgp_pkt::iana::AS_TRANS;
 use netgauze_bgp_pkt::open::{BgpOpenMessage, BgpOpenMessageParameter, BGP_VERSION};
 use netgauze_bgp_pkt::BgpMessage;
@@ -47,7 +49,11 @@ pub extern "C" fn netgauze_bgp_process_open(
 
     let open = match bgp_msg {
         BgpMessage::Open(open) => open,
-        _ => return CResult::Err(BgpOpenProcessError::WrongBgpMessageType(WrongBgpMessageTypeError(bgp_msg.get_type().into())))
+        _ => {
+            return CResult::Err(BgpOpenProcessError::WrongBgpMessageType(
+                WrongBgpMessageTypeError(bgp_msg.get_type().into()),
+            ))
+        }
     };
 
     if open.version() != BGP_VERSION {
@@ -81,7 +87,10 @@ pub extern "C" fn netgauze_bgp_process_open(
                 peer.cap_mp = u8::from(true);
             }
             BgpCapability::FourOctetAs(asn4) => {
-                peer.cap_4as = cap_4as { used: true, as4: asn4.asn4() };
+                peer.cap_4as = cap_4as {
+                    used: true,
+                    as4: asn4.asn4(),
+                };
             }
             BgpCapability::AddPath(addpath) => {
                 for addpath_af in addpath.address_families() {
@@ -149,24 +158,27 @@ pub enum BgpOpenWriteError {
     WrongBgpMessageTypeError(WrongBgpMessageTypeError),
     MyAsnTooHighForRemotePeer,
     PeerStateDoesNotMatchOpenRxMessage,
-    NetgauzeWriteError {
-        err_str: *mut c_char
-    },
+    NetgauzeWriteError { err_str: *mut c_char },
 }
 
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_open_write_result_err_str(value: BgpOpenWriteError) -> *const c_char {
+pub extern "C" fn netgauze_bgp_open_write_result_err_str(
+    value: BgpOpenWriteError,
+) -> *const c_char {
     match value {
         BgpOpenWriteError::WrongBgpMessageTypeError(_) => c_str! {
             "BgpOpenWriteError::WrongBgpMessageTypeError"
-        }.as_ptr(),
+        }
+        .as_ptr(),
         BgpOpenWriteError::MyAsnTooHighForRemotePeer => c_str! {
             "BgpOpenWriteError::MyAsnTooHighForRemotePeer"
-        }.as_ptr(),
+        }
+        .as_ptr(),
         BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage => c_str! {
             "BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage"
-        }.as_ptr(),
-        BgpOpenWriteError::NetgauzeWriteError { err_str } => err_str
+        }
+        .as_ptr(),
+        BgpOpenWriteError::NetgauzeWriteError { err_str } => err_str,
     }
 }
 
@@ -183,7 +195,6 @@ pub extern "C" fn netgauze_bgp_open_write_result_free(value: BgpOpenWriteResult)
     };
 }
 
-
 pub type BgpOpenWriteResult = CResult<usize, BgpOpenWriteError>;
 
 #[no_mangle]
@@ -199,7 +210,11 @@ pub extern "C" fn netgauze_bgp_open_write_reply(
     let bgp_msg = unsafe { open_rx.as_ref().unwrap().as_ref() };
     let open_rx = match bgp_msg {
         BgpMessage::Open(open_rx) => open_rx,
-        _ => return CResult::Err(BgpOpenWriteError::WrongBgpMessageTypeError(WrongBgpMessageTypeError(bgp_msg.get_type().into())))
+        _ => {
+            return CResult::Err(BgpOpenWriteError::WrongBgpMessageTypeError(
+                WrongBgpMessageTypeError(bgp_msg.get_type().into()),
+            ))
+        }
     };
 
     // Find the ASN and the AS4 if we have one
@@ -209,9 +224,14 @@ pub extern "C" fn netgauze_bgp_open_write_reply(
         }
         (BGP_AS_TRANS as u16, Some(open_rx.my_asn4()))
     } else {
-        (bgp_peer.myas as u16, if bgp_peer.cap_4as.used {
-            Some(open_rx.my_asn4())
-        } else { None })
+        (
+            bgp_peer.myas as u16,
+            if bgp_peer.cap_4as.used {
+                Some(open_rx.my_asn4())
+            } else {
+                None
+            },
+        )
     };
 
     // Modify received params to match our collector behaviour
@@ -223,17 +243,29 @@ pub extern "C" fn netgauze_bgp_open_write_reply(
                     match cap {
                         // Ensure all add-path capabilities we send are receive-only
                         BgpCapability::AddPath(ref mut addpath) => {
-                            let addpath_caps = addpath.address_families().iter().map(|address_family| {
-                                AddPathAddressFamily::new(address_family.address_type(), false, true)
-                            }).collect();
+                            let addpath_caps = addpath
+                                .address_families()
+                                .iter()
+                                .map(|address_family| {
+                                    AddPathAddressFamily::new(
+                                        address_family.address_type(),
+                                        false,
+                                        true,
+                                    )
+                                })
+                                .collect();
                             *addpath = AddPathCapability::new(addpath_caps);
                         }
                         BgpCapability::FourOctetAs(_) => {
                             // If we just found an ASN4 capability in the RX OPEN then we must have had an as4_cap in the peer state
                             if let Some(as4_value) = as4_cap {
-                                *cap = BgpCapability::FourOctetAs(FourOctetAsCapability::new(as4_value))
+                                *cap = BgpCapability::FourOctetAs(FourOctetAsCapability::new(
+                                    as4_value,
+                                ))
                             } else {
-                                return CResult::Err(BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage);
+                                return CResult::Err(
+                                    BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage,
+                                );
                             }
                         }
                         _ => {}
@@ -241,10 +273,15 @@ pub extern "C" fn netgauze_bgp_open_write_reply(
                 }
             }
         }
-    };
+    }
 
     // Write to buffer
-    let bgp_open = BgpMessage::Open(BgpOpenMessage::new(my_as, bgp_peer.ht, Ipv4Addr::from(&my_bgp_id), tx_params));
+    let bgp_open = BgpMessage::Open(BgpOpenMessage::new(
+        my_as,
+        bgp_peer.ht,
+        Ipv4Addr::from(&my_bgp_id),
+        tx_params,
+    ));
     let mut cursor = Cursor::new(buf);
     let write_result = {
         let mut writer = BufWriter::new(&mut cursor);
@@ -253,10 +290,8 @@ pub extern "C" fn netgauze_bgp_open_write_reply(
 
     match write_result {
         Ok(_) => CResult::Ok(cursor.position() as usize),
-        Err(err) => {
-            CResult::Err(BgpOpenWriteError::NetgauzeWriteError {
-                err_str: CString::new(format!("{:?}", err)).unwrap().into_raw(),
-            })
-        }
+        Err(err) => CResult::Err(BgpOpenWriteError::NetgauzeWriteError {
+            err_str: CString::new(format!("{:?}", err)).unwrap().into_raw(),
+        }),
     }
 }

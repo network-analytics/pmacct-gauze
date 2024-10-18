@@ -181,12 +181,14 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
 pub type BmpRouteMonitorUpdateResult = CResult<*const Opaque<BgpMessage>, WrongBmpMessageTypeError>;
 
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_route_monitor_get_bgp_update(bmp_rm: *const Opaque<BmpMessageValue>) -> BmpRouteMonitorUpdateResult {
+pub extern "C" fn netgauze_bmp_route_monitor_get_bgp_update(
+    bmp_rm: *const Opaque<BmpMessageValue>,
+) -> BmpRouteMonitorUpdateResult {
     let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
 
     let bmp_rm = match bmp_value {
         BmpMessageValue::RouteMonitoring(rm) => rm,
-        _ => return WrongBmpMessageTypeError(bmp_value.get_type().into()).into()
+        _ => return WrongBmpMessageTypeError(bmp_value.get_type().into()).into(),
     };
 
     CResult::Ok(Opaque::const_from_ref(bmp_rm.update_message()))
