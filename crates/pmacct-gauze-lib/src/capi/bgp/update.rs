@@ -6,7 +6,7 @@ use netgauze_bgp_pkt::path_attribute::{
 use netgauze_bgp_pkt::BgpMessage;
 use netgauze_bmp_pkt::BmpMessageValue;
 use netgauze_parse_utils::{WritablePdu, WritablePduWithOneInput};
-use pmacct_gauze_bindings::convert::TryConvertInto;
+use pmacct_gauze_bindings::convert::{TryConvertFrom, TryConvertInto};
 use pmacct_gauze_bindings::{
     afi_t, aspath_parse, bgp_attr, bgp_attr_extra, bgp_peer, community_add_val, community_intern,
     community_new, ecommunity_add_val, ecommunity_intern, ecommunity_new, ecommunity_val,
@@ -21,7 +21,6 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
 use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
-use crate::capi::bmp::WrongBmpMessageTypeError;
 use crate::cresult::CResult;
 use crate::cslice::CSlice;
 use crate::cslice::RustFree;
@@ -100,21 +99,6 @@ impl Debug for ProcessPacket {
     }
 }
 
-pub type BgpUpdateResult = CResult<ParsedBgpUpdate, BgpUpdateError>;
-
-#[repr(C)]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum BgpUpdateError {
-    WrongBmpMessageType(WrongBmpMessageTypeError),
-    WrongBgpMessageType(WrongBgpMessageTypeError),
-}
-
-impl<T> From<BgpUpdateError> for CResult<T, BgpUpdateError> {
-    fn from(value: BgpUpdateError) -> Self {
-        Self::Err(value)
-    }
-}
-
 pub fn process_mp_unreach(
     mp_unreach: &MpUnreach,
     attr: &mut bgp_attr,
@@ -130,7 +114,7 @@ pub fn process_mp_unreach(
             pmacct_log(
                 LogPriority::Warning,
                 &format!(
-                    "[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n",
+                    "[pmacct-gauze] warn! could not convert MpUnreach afi/safi {}/{} to pmacct\n",
                     mp_unreach.afi(),
                     mp_unreach.safi()
                 ),
@@ -263,7 +247,7 @@ pub fn process_mp_reach(
             pmacct_log(
                 LogPriority::Warning,
                 &format!(
-                    "[pmacct-gauze] warn! could not convert afi/safi {}/{} to pmacct\n",
+                    "[pmacct-gauze] warn! could not convert MpReach afi/safi {}/{} to pmacct\n",
                     mp_reach.afi(),
                     mp_reach.safi()
                 ),
@@ -618,34 +602,18 @@ pub(crate) fn process_attributes(
     (mp_reach, mp_unreach, attr, attr_extra)
 }
 
-// TODO rename; make this a bgp function and a wrapper in bmp module
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+pub type BgpUpdateResult = CResult<ParsedBgpUpdate, WrongBgpMessageTypeError>;
+
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,
-    bmp_rm: *const Opaque<BmpMessageValue>,
+    bgp_msg: *const Opaque<BgpMessage>,
 ) -> BgpUpdateResult {
-    let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };
+    let bgp_msg = unsafe { bgp_msg.as_ref().unwrap().as_ref() };
 
-    let bmp_rm = match bmp_value {
-        BmpMessageValue::RouteMonitoring(rm) => rm,
-        _ => {
-            return BgpUpdateError::WrongBmpMessageType(WrongBmpMessageTypeError(
-                bmp_value.get_type().into(),
-            ))
-            .into();
-        }
-    };
-
-    let bgp_msg = bmp_rm.update_message();
     let update = match bgp_msg {
         BgpMessage::Update(update) => update,
-        _ => {
-            return BgpUpdateError::WrongBgpMessageType(WrongBgpMessageTypeError(
-                bgp_msg.get_type().into(),
-            ))
-            .into();
-        }
+        _ => return WrongBgpMessageTypeError(bgp_msg.get_type().into()).into()
     };
 
     let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
@@ -691,17 +659,25 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
 
     // Handle EoR
     if let Some(address_type) = update.end_of_rib() {
-        let afi = address_type.address_family() as afi_t;
-        let safi = address_type.subsequent_address_family() as safi_t;
-
-        packets.push(ProcessPacket {
-            update_type: BGP_NLRI_EOR,
-            afi,
-            safi,
-            prefix: prefix::from(&Ipv4Net::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()), // This field should not be used
-            attr,
-            attr_extra,
-        });
+        if let (Ok(afi), Ok(safi)) = (afi_t::try_convert_from(address_type.address_family()), safi_t::try_convert_from(address_type.subsequent_address_family())) {
+            packets.push(ProcessPacket {
+                update_type: BGP_NLRI_EOR,
+                afi,
+                safi,
+                prefix: prefix::from(&Ipv4Net::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()), // This field should not be used
+                attr,
+                attr_extra,
+            });
+        } else {
+            pmacct_log(
+                LogPriority::Warning,
+                &format!(
+                    "[pmacct-gauze] warn! could not convert EoR afi/safi {}/{} to pmacct\n",
+                    address_type.address_family(),
+                    address_type.subsequent_address_family()
+                ),
+            );
+        }
     }
 
     BgpUpdateResult::Ok(ParsedBgpUpdate {
