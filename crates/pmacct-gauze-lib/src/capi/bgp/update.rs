@@ -552,8 +552,8 @@ pub(crate) fn process_attributes(
             | PathAttributeValue::Aggregator(_)
             | PathAttributeValue::Originator(_)
             | PathAttributeValue::ClusterList(_)
-            | PathAttributeValue::BgpLs(_)
-            | PathAttributeValue::UnknownAttribute(_) => pmacct_log(
+            | PathAttributeValue::BgpLs(_) => {}
+            PathAttributeValue::UnknownAttribute(_) => pmacct_log(
                 LogPriority::Warning,
                 &format!(
                     "[pmacct-gauze] warn! attribute type {} is not supported by pmacct\n",
@@ -580,7 +580,7 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
 
     let update = match bgp_msg {
         BgpMessage::Update(update) => update,
-        _ => return WrongBgpMessageTypeError(bgp_msg.get_type().into()).into()
+        _ => return WrongBgpMessageTypeError(bgp_msg.get_type().into()).into(),
     };
 
     let mut packets = Vec::with_capacity(update.withdraw_routes().len() + update.nlri().len());
@@ -626,7 +626,10 @@ pub extern "C" fn netgauze_bgp_update_get_updates(
 
     // Handle EoR
     if let Some(address_type) = update.end_of_rib() {
-        if let (Ok(afi), Ok(safi)) = (afi_t::try_convert_from(address_type.address_family()), safi_t::try_convert_from(address_type.subsequent_address_family())) {
+        if let (Ok(afi), Ok(safi)) = (
+            afi_t::try_convert_from(address_type.address_family()),
+            safi_t::try_convert_from(address_type.subsequent_address_family()),
+        ) {
             packets.push(ProcessPacket {
                 update_type: BGP_NLRI_EOR,
                 afi,

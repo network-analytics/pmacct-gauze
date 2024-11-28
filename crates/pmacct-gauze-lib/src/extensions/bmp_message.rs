@@ -89,7 +89,6 @@ pub trait ExtendBmpPeerHeader {
     fn rib_type(&self) -> Option<BmpRibType>;
 }
 
-// That will go in Netgauze
 pub enum BmpRibType {
     AdjRibInPrePolicy,
     AdjRibInPostPolicy,

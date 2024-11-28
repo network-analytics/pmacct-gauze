@@ -169,15 +169,15 @@ pub extern "C" fn netgauze_bgp_open_write_result_err_str(
         BgpOpenWriteError::WrongBgpMessageTypeError(_) => c_str! {
             "BgpOpenWriteError::WrongBgpMessageTypeError"
         }
-            .as_ptr(),
+        .as_ptr(),
         BgpOpenWriteError::MyAsnTooHighForRemotePeer => c_str! {
             "BgpOpenWriteError::MyAsnTooHighForRemotePeer"
         }
-            .as_ptr(),
+        .as_ptr(),
         BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage => c_str! {
             "BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage"
         }
-            .as_ptr(),
+        .as_ptr(),
         BgpOpenWriteError::NetgauzeWriteError { err_str } => err_str,
     }
 }
