@@ -5,8 +5,8 @@ use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use crate::capi::features::prefix_tree::{Branch, compute_branch, LookupResult, NodeType, Prefix};
 use crate::capi::features::prefix_tree::NodeType::{Entry, Structural};
+use crate::capi::features::prefix_tree::{compute_branch, Branch, LookupResult, NodeType, Prefix};
 
 #[derive(Default, Clone)]
 pub struct PrefixTree<Pfx>
@@ -162,13 +162,15 @@ impl<Pfx> Node<Pfx> {
 
 impl<Pfx: Eq> Node<Pfx> {
     pub fn has_direct_child(&self, child: TreeRef<Pfx>) -> Option<Branch> {
-        return if let Some(left) = &self.left && child.eq(left) {
-            Some(Branch::Left)
-        } else if let Some(right) = &self.right && child.eq(right) {
-            Some(Branch::Right)
-        } else {
-            None
-        };
+        match (&self.left, &self.right) {
+            (Some(left), _) if child.eq(left) => {
+                Some(Branch::Left)
+            }
+            (_, Some(right)) if child.eq(right) => {
+                Some(Branch::Right)
+            }
+            _ => None
+        }
     }
 }
 
@@ -182,8 +184,11 @@ pub fn set_child_node_and_parent<Pfx: Prefix>(parent: TreeRef<Pfx>, child: TreeR
 pub fn insert_parent_above<Pfx: Prefix>(parent: TreeRef<Pfx>, child: TreeRef<Pfx>) {
     let old_parent = child.borrow().parent.clone();
     set_child_node_and_parent(parent.clone(), child);
-    if let Some(old_parent) = old_parent && old_parent != parent {
-        set_child_node_and_parent(old_parent, parent);
+    match old_parent {
+        Some(old_parent) if old_parent != parent => {
+            set_child_node_and_parent(old_parent, parent);
+        }
+        _ => {}
     }
 }
 

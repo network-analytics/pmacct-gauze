@@ -1,12 +1,15 @@
-use std::{mem, slice};
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+use std::{mem, slice};
 
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use netgauze_bgp_pkt::community::Community;
 
-use pmacct_gauze_bindings::{bgp_info, bgp_misc_structs, BGP_MSG_EXTRA_DATA_BMP, bgp_peer, bgp_route_next, bgp_select_misc_db, bgp_table, bgp_table_top, bmp_chars, bmp_peer, BMP_PEER_TYPE_L3VPN};
 use pmacct_gauze_bindings::FUNC_TYPE_BMP;
+use pmacct_gauze_bindings::{
+    bgp_info, bgp_misc_structs, bgp_peer, bgp_route_next, bgp_select_misc_db, bgp_table,
+    bgp_table_top, bmp_chars, bmp_peer, BGP_MSG_EXTRA_DATA_BMP, BMP_PEER_TYPE_L3VPN,
+};
 
 use crate::capi::features::rib::{Rib, RibPrefixTree};
 
@@ -26,7 +29,7 @@ pub extern "C" fn vsd_find_sites(bmp_peer: *const bmp_peer, bmp_table: *const bg
     };
     println!("prefix link = {:#?}", prefix_link);
 
-    let mut sites = group_pfx_of_same_link_set(prefix_link);
+    let sites = group_pfx_of_same_link_set(prefix_link);
     println!("sites = {:#?}", sites);
 }
 
@@ -39,20 +42,28 @@ pub extern "C" fn vsd_find_sites_comms(bmp_peer: *const bmp_peer, bmp_table: *co
 
     unsafe {
         walk_table(bms, &*bmp_table, vpn_filter, |prefix, info| {
-            if let Some(attr) = info.attr.as_ref()
-                && let Some(comms) = attr.community.as_ref() {
-                let comms = slice::from_raw_parts(comms.val, comms.size as usize);
+            let comms = 'get_comms: {
+                if let Some(attr) = info.attr.as_ref() {
+                    if let Some(comms) = attr.community.as_ref() {
+                        break 'get_comms slice::from_raw_parts(comms.val, comms.size as usize);
+                    }
+                }
+                return;
+            };
 
-                for comm in comms {
-                    let comm = comm.swap_bytes(); // pmacct stores in network byte order
-                    if comm & comm_vpn_site_tag_mask == comm_vpn_site_tag_mask {
-                        let site = sites.entry(Community::new(comm)).or_insert(Default::default());
-                        site.links.insert(make_link(info));
-                        site.insert(prefix);
-                        site.metadata.insert(SiteMetadata::SiteCommunity(Community::new(comm)));
-                        if let Some(vpn_filter) = vpn_filter {
-                            site.metadata.insert(SiteMetadata::VpnCommunity(vpn_filter));
-                        }
+
+            for comm in comms {
+                let comm = comm.swap_bytes(); // pmacct stores in network byte order
+                if comm & comm_vpn_site_tag_mask == comm_vpn_site_tag_mask {
+                    let site = sites
+                        .entry(Community::new(comm))
+                        .or_insert(Default::default());
+                    site.links.insert(make_link(info));
+                    site.insert(prefix);
+                    site.metadata
+                        .insert(SiteMetadata::SiteCommunity(Community::new(comm)));
+                    if let Some(vpn_filter) = vpn_filter {
+                        site.metadata.insert(SiteMetadata::VpnCommunity(vpn_filter));
                     }
                 }
             }
@@ -86,7 +97,11 @@ pub struct Site {
 }
 
 impl Site {
-    pub fn new(links: HashSet<Link>, prefixes: Option<Vec<IpNet>>, tags: Option<Vec<SiteMetadata>>) -> Self {
+    pub fn new(
+        links: HashSet<Link>,
+        prefixes: Option<Vec<IpNet>>,
+        tags: Option<Vec<SiteMetadata>>,
+    ) -> Self {
         let mut new = Self {
             links,
             prefixes_v4: Default::default(),
@@ -106,7 +121,7 @@ impl Site {
     pub fn insert(&mut self, prefix: IpNet) {
         match prefix {
             IpNet::V4(prefix) => self.prefixes_v4.insert(prefix, ()),
-            IpNet::V6(prefix) => self.prefixes_v6.insert(prefix, ())
+            IpNet::V6(prefix) => self.prefixes_v6.insert(prefix, ()),
         }
     }
 
@@ -114,12 +129,8 @@ impl Site {
     // We only do longest prefix match because routes are inserted in the RIB in less to more specific order
     pub fn is_mspi(&self, prefix: &IpNet) -> bool {
         return match prefix {
-            IpNet::V4(prefix) => {
-                (&self.prefixes_v4).longest_prefix_match(prefix).is_some()
-            }
-            IpNet::V6(prefix) => {
-                (&self.prefixes_v6).longest_prefix_match(prefix).is_some()
-            }
+            IpNet::V4(prefix) => (&self.prefixes_v4).longest_prefix_match(prefix).is_some(),
+            IpNet::V6(prefix) => (&self.prefixes_v6).longest_prefix_match(prefix).is_some(),
         };
     }
 }
@@ -179,14 +190,16 @@ pub unsafe fn prefix_link_discovery(bms: &bgp_misc_structs, table: &bgp_table) -
                 if let Some(links) = map.prefixes_v4.lookup_mut(&prefix) {
                     links.insert(link);
                 } else {
-                    map.prefixes_v4.insert(prefix.clone(), HashSet::from([link]));
+                    map.prefixes_v4
+                        .insert(prefix.clone(), HashSet::from([link]));
                 }
             }
             IpNet::V6(prefix) => {
                 if let Some(links) = map.prefixes_v6.lookup_mut(&prefix) {
                     links.insert(link);
                 } else {
-                    map.prefixes_v6.insert(prefix.clone(), HashSet::from([link]));
+                    map.prefixes_v6
+                        .insert(prefix.clone(), HashSet::from([link]));
                 }
             }
         };
@@ -212,8 +225,12 @@ unsafe fn make_link(info: &bgp_info) -> Link {
     }
 }
 
-pub unsafe fn walk_table(bms: &bgp_misc_structs, table: &bgp_table, vpn_filter: Option<Community>, mut apply: impl FnMut(IpNet, &bgp_info)) {
-
+pub unsafe fn walk_table(
+    bms: &bgp_misc_structs,
+    table: &bgp_table,
+    vpn_filter: Option<Community>,
+    mut apply: impl FnMut(IpNet, &bgp_info),
+) {
     // Create dummy bgp_peer to read the RIB
     let mut reader: bgp_peer = mem::zeroed();
     reader.type_ = FUNC_TYPE_BMP as i32;
@@ -225,25 +242,31 @@ pub unsafe fn walk_table(bms: &bgp_misc_structs, table: &bgp_table, vpn_filter: 
 
         // Walk route information (paths)
         // We want to look at all paths in the rib so we iterate in all buckets peer_buckets * per_peer_buckets)
-        let route_info_table = slice::from_raw_parts(route.info as *mut *mut bgp_info, (bms.table_per_peer_buckets * bms.table_peer_buckets) as usize);
+        let route_info_table = slice::from_raw_parts(
+            route.info as *mut *mut bgp_info,
+            (bms.table_per_peer_buckets * bms.table_peer_buckets) as usize,
+        );
         for bucket in route_info_table {
-
             // In a bucket we have a linked-list of paths, iterate over it
             let mut ri = *bucket;
             while !ri.is_null() {
                 let info = ri.as_ref().unwrap();
 
                 // Filter path by VPN ID
-                let belongs_to_vpn_client = {
-                    if let Some(attr) = info.attr.as_ref()
-                        && let Some(comm) = attr.community.as_ref()
-                        && let Some(vpn_comm) = vpn_filter {
-                        let slice = slice::from_raw_parts(comm.val, comm.size as usize);
-                        slice.iter().any(|comm| *comm == vpn_comm.value())
-                    } else {
-                        // If we have no filter configured keep all paths
-                        vpn_filter.is_none()
+                let belongs_to_vpn_client = 'check_if_belongs: {
+                    let default = vpn_filter.is_none();
+                    if let Some(attr) = info.attr.as_ref() {
+                        if let Some(comm) = attr.community.as_ref() {
+                            if let Some(vpn_comm) = vpn_filter {
+                                let slice = slice::from_raw_parts(comm.val, comm.size as usize);
+                                break 'check_if_belongs slice
+                                    .iter()
+                                    .any(|comm| *comm == vpn_comm.value());
+                            }
+                        }
                     }
+
+                    default
                 };
 
                 if !belongs_to_vpn_client {
@@ -256,7 +279,11 @@ pub unsafe fn walk_table(bms: &bgp_misc_structs, table: &bgp_table, vpn_filter: 
                 // (bmp sessions in the client VRF instead of the default VRF)
                 assert_eq!(info.bmed.id, BGP_MSG_EXTRA_DATA_BMP as u8);
                 if let Some(data) = (info.bmed.data as *const bmp_chars).as_ref() {
-                    if data.is_out != 0 || data.is_loc != 0 || data.peer_type != BMP_PEER_TYPE_L3VPN as u8 { // This is not adj-in pre or post
+                    if data.is_out != 0
+                        || data.is_loc != 0
+                        || data.peer_type != BMP_PEER_TYPE_L3VPN as u8
+                    {
+                        // This is not adj-in pre or post
                         ri = info.next;
                         continue;
                     }

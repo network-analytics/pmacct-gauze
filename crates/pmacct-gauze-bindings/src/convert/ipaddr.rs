@@ -128,10 +128,10 @@ impl TryFrom<&host_addr> for IpAddr {
 
     fn try_from(value: &host_addr) -> Result<Self, Self::Error> {
         match value.family as i32 {
-            AF_INET => unsafe {
+            libc::AF_INET => unsafe {
                 Ok(IpAddr::V4(Ipv4Addr::from(value.address.ipv4)))
             }
-            AF_INET6 => unsafe {
+            libc::AF_INET6 => unsafe {
                 Ok(IpAddr::V6(Ipv6Addr::from(&value.address.ipv6)))
             }
             _ => {
@@ -158,10 +158,10 @@ impl TryFrom<&prefix> for IpNet {
 
     fn try_from(value: &prefix) -> Result<Self, Self::Error> {
         match value.family as i32 {
-            AF_INET => unsafe {
+            libc::AF_INET => unsafe {
                 Ok(IpNet::V4(Ipv4Net::new(Ipv4Addr::from(&value.u.prefix4), value.prefixlen)?))
             }
-            AF_INET6 => unsafe {
+            libc::AF_INET6 => unsafe {
                 Ok(IpNet::V6(Ipv6Net::new(Ipv6Addr::from(&value.u.prefix6), value.prefixlen)?))
             }
             _ => {
