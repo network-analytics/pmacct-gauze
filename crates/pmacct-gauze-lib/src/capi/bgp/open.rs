@@ -173,15 +173,15 @@ pub extern "C" fn netgauze_bgp_open_write_result_err_str(
         BgpOpenWriteError::WrongBgpMessageTypeError(_) => c_str! {
             "BgpOpenWriteError::WrongBgpMessageTypeError"
         }
-        .as_ptr(),
+            .as_ptr(),
         BgpOpenWriteError::MyAsnTooHighForRemotePeer => c_str! {
             "BgpOpenWriteError::MyAsnTooHighForRemotePeer"
         }
-        .as_ptr(),
+            .as_ptr(),
         BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage => c_str! {
             "BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage"
         }
-        .as_ptr(),
+            .as_ptr(),
         BgpOpenWriteError::NetgauzeWriteError { err_str } => err_str,
     }
 }
@@ -214,11 +214,11 @@ pub type BgpOpenWriteResult = CResult<usize, BgpOpenWriteError>;
 pub unsafe extern "C" fn netgauze_bgp_open_write_reply(
     bgp_peer: *const bgp_peer,
     open_rx: *const Opaque<BgpMessage>,
-    buf: *mut u8,
+    buf: *mut c_char,
     buf_len: usize,
     my_bgp_id: in_addr,
 ) -> BgpOpenWriteResult {
-    let buf = unsafe { slice::from_raw_parts_mut(buf, buf_len) };
+    let buf = unsafe { slice::from_raw_parts_mut(buf as *mut u8, buf_len) };
     let bgp_peer = unsafe { bgp_peer.as_ref().unwrap() };
     let bgp_msg = unsafe { open_rx.as_ref().unwrap().as_ref() };
     let open_rx = match bgp_msg {
