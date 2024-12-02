@@ -35,9 +35,13 @@ pub enum BgpOpenProcessError {
 
 pub type BgpOpenProcessResult = CResult<usize, BgpOpenProcessError>;
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Update the [bgp_peer] based on a [BgpMessage]
+///
+/// # Safety
+/// `bgp_msg` should be not null and point to valid data
+/// `bgp_peer` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_process_open(
+pub unsafe extern "C" fn netgauze_bgp_process_open(
     bgp_msg: *const Opaque<BgpMessage>,
     bgp_peer: *mut bgp_peer,
     max_hold_time: u16,
@@ -182,6 +186,7 @@ pub extern "C" fn netgauze_bgp_open_write_result_err_str(
     }
 }
 
+#[allow(clippy::single_match)]
 #[no_mangle]
 pub extern "C" fn netgauze_bgp_open_write_result_free(value: BgpOpenWriteResult) {
     match value {
@@ -197,8 +202,16 @@ pub extern "C" fn netgauze_bgp_open_write_result_free(value: BgpOpenWriteResult)
 
 pub type BgpOpenWriteResult = CResult<usize, BgpOpenWriteError>;
 
+/// Process a received BGP Open and write a reply BGP Open with the correct capabilities for a collector
+///
+/// # Safety
+/// `bgp_peer` should be not null and point to valid data
+/// `open_rx` should be not null and point to valid data
+/// `buf` should be not null and point a byte buffer we can write to
+///
+/// This function does not consume the `buf` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_open_write_reply(
+pub unsafe extern "C" fn netgauze_bgp_open_write_reply(
     bgp_peer: *const bgp_peer,
     open_rx: *const Opaque<BgpMessage>,
     buf: *mut u8,

@@ -15,8 +15,11 @@ pub struct BgpNotification {
 }
 pub type BgpNotificationResult = CResult<BgpNotification, WrongBgpMessageTypeError>;
 
+/// Get the [BgpNotification] from a BGP Message
+/// # Safety
+/// `bgp_message` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_notification(
+pub unsafe extern "C" fn netgauze_bgp_notification(
     bgp_message: *const Opaque<BgpMessage>,
 ) -> BgpNotificationResult {
     let bgp_message = unsafe { bgp_message.as_ref().unwrap().as_ref() };

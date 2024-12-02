@@ -16,8 +16,11 @@ pub mod open;
 pub mod parse;
 pub mod update;
 
+/// Print a BGP Message
+/// # Safety
+/// `bgp_message` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_print_message(bgp_message: *const Opaque<BgpMessage>) {
+pub unsafe extern "C" fn netgauze_bgp_print_message(bgp_message: *const Opaque<BgpMessage>) {
     let bgp_message = unsafe { bgp_message.as_ref().unwrap().as_ref() };
     println!("{:#?}", bgp_message);
 }

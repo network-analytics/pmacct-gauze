@@ -5,6 +5,7 @@ use std::{ptr, slice};
 // TODO consider adding OwnedSlice / Slice or CSlice<Owned/Borrowed>
 
 /// [`OwnedSlice<T>`] represents an owned contiguous chunk of memory like an array.
+/// It must be manually freed by giving it back to Rust using CSlice_free_* functions.
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct OwnedSlice<T> {
@@ -71,23 +72,30 @@ impl<T> OwnedSlice<T> {
         }
     }
 
-    pub unsafe fn from_slice(value: &[T]) -> Self {
+    /// Make an [`OwnedSlice<T>`] from a slice [`&[T]`]
+    pub fn from_slice(value: &[T]) -> Self {
         let (ptr, len) = (value.as_ptr(), value.len());
         Self {
             base_ptr: ptr as *mut T,
             stride: size_of::<T>(),
-            end_ptr: ptr.add(len) as *mut T,
+            end_ptr: unsafe { ptr.add(len) as *mut T },
             len,
             cap: len,
         }
     }
 
-    pub unsafe fn to_slice<'a>(value: Self) -> &'a [T] {
-        slice::from_raw_parts(value.base_ptr, value.len)
+    /// Get a slice [`&[T]`] from [`OwnedSlice<T>`]
+    /// # Safety
+    /// see [slice::from_raw_parts]
+    pub unsafe fn as_slice(&self) -> &[T] {
+        slice::from_raw_parts(self.base_ptr, self.len)
     }
 
-    pub unsafe fn to_slice_mut<'a>(value: Self) -> &'a mut [T] {
-        slice::from_raw_parts_mut(value.base_ptr, value.len)
+    /// Get a slice [`&mut [T]`] from [`OwnedSlice<T>`]
+    /// # Safety
+    /// see [slice::from_raw_parts_mut]
+    pub unsafe fn to_slice_mut(&mut self) -> &mut [T] {
+        slice::from_raw_parts_mut(self.base_ptr, self.len)
     }
 }
 
@@ -105,9 +113,9 @@ pub struct BorrowedSlice<'a, T> {
     _marker: PhantomData<&'a T>,
 }
 
-impl<'a, T> BorrowedSlice<'a, T> {
+impl<T> BorrowedSlice<'_, T> {
     /// Turn a [`Vec<T>`] into a [`BorrowedSlice<'a, T>`] to send it over to C
-    /// # Satefy
+    /// # Safety
     /// The [`Vec<T>`] must not be freed before the [`BorrowedSlice<'a, T>`] is.
     pub fn from_vec(value: &Vec<T>) -> Self {
         // TODO replace by [Vec::into_raw_parts] when the vec_into_raw_parts feature is stable
@@ -133,23 +141,23 @@ impl<'a, T> BorrowedSlice<'a, T> {
         }
     }
 
-    pub unsafe fn from_slice(value: &[T]) -> Self {
+    /// Make an [`OwnedSlice<T>`] from [`&[T]`]
+    pub fn from_slice(value: &[T]) -> Self {
         let (ptr, len) = (value.as_ptr(), value.len());
         Self {
             base_ptr: ptr as *mut T,
             stride: size_of::<T>(),
-            end_ptr: ptr.add(len) as *mut T,
+            end_ptr: unsafe { ptr.add(len) as *mut T },
             len,
             cap: len,
             _marker: Default::default(),
         }
     }
 
-    pub unsafe fn to_slice(value: Self) -> &'a [T] {
-        slice::from_raw_parts(value.base_ptr, value.len)
-    }
-
-    pub unsafe fn to_slice_mut(value: Self) -> &'a mut [T] {
-        slice::from_raw_parts_mut(value.base_ptr as *mut T, value.len)
+    /// Make a slice [`&[T]`] from [`OwnedSlice<T>`]
+    /// # Safety
+    /// see [slice::from_raw_parts]
+    pub unsafe fn as_slice(&self) -> &[T] {
+        slice::from_raw_parts(self.base_ptr, self.len)
     }
 }

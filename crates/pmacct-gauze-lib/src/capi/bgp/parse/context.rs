@@ -16,8 +16,16 @@ make_default!(Opaque<BgpParsingContext>, Opaque_BgpParsingContext);
 free_rust_raw_box!(Opaque<BgpContextCache>, Opaque_BgpContextCache);
 make_default!(Opaque<BgpContextCache>, Opaque_BgpContextCache);
 
+/// Set the value of [BgpContextCacheKey] to [BgpParsingContext] in [BgpContextCache]
+///
+/// # Safety
+/// `opaque_context_cache` should be not null and point to valid data
+/// `opaque_bgp_parsing_context` should be not null and point to valid data
+///
+/// This function does not consume the `opaque_context_cache` pointer
+/// It does consume the `opaque_bgp_parsing_context` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_context_cache_set(
+pub unsafe extern "C" fn netgauze_bgp_context_cache_set(
     opaque_context_cache: *mut Opaque<BgpContextCache>,
     context_cache_key: BgpContextCacheKey,
     opaque_bgp_parsing_context: *mut Opaque<BgpParsingContext>,
@@ -31,9 +39,14 @@ pub extern "C" fn netgauze_bgp_context_cache_set(
     netgauze_bgp_context_cache_get(opaque_context_cache, context_cache_key)
 }
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Get a mutable pointer to [BgpParsingContext] of the [BgpContextCacheKey] in [BgpContextCache]
+///
+/// # Safety
+/// `opaque_context_cache` should be not null and point to valid data
+///
+/// `opaque_context_cache` is not consumed
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_context_cache_get(
+pub unsafe extern "C" fn netgauze_bgp_context_cache_get(
     opaque_context_cache: *mut Opaque<BgpContextCache>,
     context_cache_key: BgpContextCacheKey,
 ) -> *mut Opaque<BgpParsingContext> {
@@ -46,9 +59,14 @@ pub extern "C" fn netgauze_bgp_context_cache_get(
     }
 }
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Delete the [BgpParsingContext] of the [BgpContextCacheKey] in [BgpContextCache]
+///
+/// # Safety
+/// `opaque_context_cache` should be not null and point to valid data
+///
+/// `opaque_context_cache` is not consumed
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_context_cache_delete(
+pub unsafe extern "C" fn netgauze_bgp_context_cache_delete(
     opaque_context_cache: *mut Opaque<BgpContextCache>,
     context_cache_key: BgpContextCacheKey,
 ) {

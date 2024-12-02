@@ -40,17 +40,27 @@ pub struct ParsedBgp {
     pub message: *mut Opaque<BgpMessage>,
 }
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Parse a buffer with given length into a BGP Message with no specific context
+///
+/// # Safety
+/// `buffer` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_parse_packet(
+pub unsafe extern "C" fn netgauze_bgp_parse_packet(
     buffer: *const c_char,
     buffer_length: u32,
 ) -> BgpParseResult {
     netgauze_bgp_parse_packet_with_context(buffer, buffer_length, &mut Default::default())
 }
 
+/// Parse a buffer with given length into a BGP Message with a given context
+///
+/// # Safety
+/// `buffer` should be not null and point to valid data
+/// `bgp_parsing_context` should be not null and point to valid data
+///
+/// `bgp_parsing_context` is not consumed
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_parse_packet_with_context(
+pub unsafe extern "C" fn netgauze_bgp_parse_packet_with_context(
     buffer: *const c_char,
     buffer_length: u32,
     bgp_parsing_context: *mut Opaque<BgpParsingContext>,

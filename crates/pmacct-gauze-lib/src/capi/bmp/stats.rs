@@ -15,10 +15,12 @@ pub type BmpStatsResult = CResult<OwnedSlice<bmp_log_stats>, WrongBmpMessageType
 
 free_cslice_t!(bmp_log_stats);
 
-/// This function does not consume the `bmp_message_value_opaque` pointer
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Get an [OwnedSlice<bmp_log_stats>] from a BMP Statistics Message
+///
+/// # Safety
+/// `bmp_message_value_opaque` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_stats_get_stats(
+pub unsafe extern "C" fn netgauze_bmp_stats_get_stats(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) -> BmpStatsResult {
     let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap().as_ref() };

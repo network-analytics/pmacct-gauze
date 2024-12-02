@@ -43,16 +43,31 @@ pub struct ParsedBmp {
     pub message: *mut Opaque<BmpMessageValue>,
 }
 
+/// Parse a [BmpMessage] from a buffer with given length without context
+///
+/// # Safety
+/// `buffer` should be not null and point to valid data of length `buf_len`
+/// `bmp_parsing_context` should be not null and point to valid data
+///
+/// This function does not consume the `bmp_parsing_context` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_parse_packet(buffer: *const c_char, buf_len: u32) -> BmpParseResult {
+pub unsafe extern "C" fn netgauze_bmp_parse_packet(
+    buffer: *const c_char,
+    buf_len: u32,
+) -> BmpParseResult {
     let ctx = BmpParsingContext::default();
     netgauze_bmp_parse_packet_with_context(buffer, buf_len, &mut Opaque::from(ctx))
 }
 
-/// The `bmp_parsing_context` pointer is mutated but not consumed.
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Parse a [BmpMessage] from a buffer with given length using a given context
+///
+/// # Safety
+/// `buffer` should be not null and point to valid data of length `buf_len`
+/// `bmp_parsing_context` should be not null and point to valid data
+///
+/// This function does not consume the `bmp_parsing_context` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_parse_packet_with_context(
+pub unsafe extern "C" fn netgauze_bmp_parse_packet_with_context(
     buffer: *const c_char,
     buf_len: u32,
     bmp_parsing_context: *mut Opaque<BmpParsingContext>,

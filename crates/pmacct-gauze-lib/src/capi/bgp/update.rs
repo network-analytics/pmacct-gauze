@@ -32,9 +32,10 @@ use crate::opaque::Opaque;
 
 free_cslice_t!(u8);
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
-#[no_mangle]
-pub extern "C" fn netgauze_bgp_update_nlri_naive_copy(
+/// Serialize the BGP Update in a Route Monitoring Message
+/// # Safety
+/// `bmp_rm` should be not null and point to valid data
+pub unsafe extern "C" fn netgauze_bgp_update_nlri_naive_copy(
     bmp_rm: *const Opaque<BmpMessageValue>,
 ) -> OwnedSlice<u8> {
     let bmp_rm = unsafe { bmp_rm.as_ref().unwrap() };
@@ -571,8 +572,14 @@ pub(crate) fn process_attributes(
 
 pub type BgpUpdateResult = CResult<ParsedBgpUpdate, WrongBgpMessageTypeError>;
 
+/// Get the updated NLRIs and their attributes from a [BgpMessage]
+/// see [ProcessPacket]
+///
+/// # Safety
+/// `peer` should be not null and point to valid data
+/// `bgp_msg` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bgp_update_get_updates(
+pub unsafe extern "C" fn netgauze_bgp_update_get_updates(
     peer: *mut bgp_peer,
     bgp_msg: *const Opaque<BgpMessage>,
 ) -> BgpUpdateResult {

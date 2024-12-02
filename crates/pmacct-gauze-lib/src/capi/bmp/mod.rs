@@ -61,9 +61,12 @@ impl<T> From<WrongBmpMessageTypeError> for CResult<T, WrongBmpMessageTypeError> 
 /// The `CSlice<bmp_log_tlv>` must be manually freed with [CSlice_free_bmp_log_tlv]
 pub type BmpTlvListResult = CResult<OwnedSlice<bmp_log_tlv>, WrongBmpMessageTypeError>;
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Get an [OwnedSlice<bmp_log_tlv>] from any BMP Message
+///
+/// # Safety
+/// `bmp_message_value_opaque` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_get_tlvs(
+pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) -> BmpTlvListResult {
     let bmp_value = unsafe { bmp_message_value_opaque.as_ref().unwrap().as_ref() };
@@ -123,9 +126,12 @@ free_cslice_t!(bmp_log_tlv);
 
 pub type BmpPeerHdrDataResult = CResult<bmp_data, WrongBmpMessageTypeError>;
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
+/// Get a [bmp_data] from any BMP Message that has a Peer Header
+///
+/// # Safety
+/// `bmp_message_value_opaque` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
+pub unsafe extern "C" fn netgauze_bmp_peer_hdr_get_data(
     bmp_message_value_opaque: *const Opaque<BmpMessageValue>,
 ) -> BmpPeerHdrDataResult {
     let bmp_msg = unsafe { bmp_message_value_opaque.as_ref().unwrap().as_ref() };
@@ -180,8 +186,12 @@ pub extern "C" fn netgauze_bmp_peer_hdr_get_data(
 
 pub type BmpRouteMonitorUpdateResult = CResult<*const Opaque<BgpMessage>, WrongBmpMessageTypeError>;
 
+/// Get a BGP Update Message ([BgpMessage]) from a BMP Route Monitoring Message
+///
+/// # Safety
+/// `bmp_rm` should be not null and point to valid data
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_route_monitor_get_bgp_update(
+pub unsafe extern "C" fn netgauze_bmp_route_monitor_get_bgp_update(
     bmp_rm: *const Opaque<BmpMessageValue>,
 ) -> BmpRouteMonitorUpdateResult {
     let bmp_value = unsafe { bmp_rm.as_ref().unwrap().as_ref() };

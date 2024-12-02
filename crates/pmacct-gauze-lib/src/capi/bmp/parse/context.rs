@@ -17,8 +17,16 @@ pub type BmpContextCache = ContextCache<BmpContextCacheKey, BmpParsingContext>;
 free_rust_raw_box!(Opaque<BmpContextCache>, Opaque_BmpContextCache);
 make_default!(Opaque<BmpContextCache>, Opaque_BmpContextCache);
 
+/// Set [BmpParsingContext] of [BmpContextCacheKey] in [BmpContextCache]
+///
+/// # Safety
+/// `opaque_context_cache` should be not null and point to valid data
+/// `opaque_bmp_parsing_context` should be not null and point to valid data
+///
+/// This function does not consume the `opaque_context_cache` pointer
+/// It does consume the `opaque_bmp_parsing_context` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_context_cache_set(
+pub unsafe extern "C" fn netgauze_bmp_context_cache_set(
     opaque_context_cache: *mut Opaque<BmpContextCache>,
     context_cache_key: BmpContextCacheKey,
     opaque_bmp_parsing_context: *mut Opaque<BmpParsingContext>,
@@ -32,8 +40,14 @@ pub extern "C" fn netgauze_bmp_context_cache_set(
     netgauze_bmp_context_cache_get(opaque_context_cache, context_cache_key)
 }
 
+/// Get a mutable pointer to [BmpParsingContext] of [BmpContextCacheKey] in [BmpContextCache]
+///
+/// # Safety
+/// `opaque_context_cache` should be not null and point to valid data
+///
+/// This function does not consume the `opaque_context_cache` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_context_cache_get(
+pub unsafe extern "C" fn netgauze_bmp_context_cache_get(
     opaque_context_cache: *mut Opaque<BmpContextCache>,
     context_cache_key: BmpContextCacheKey,
 ) -> *mut Opaque<BmpParsingContext> {
@@ -45,9 +59,14 @@ pub extern "C" fn netgauze_bmp_context_cache_get(
         null_mut()
     }
 }
-
+/// Delete [BmpParsingContext] of [BmpContextCacheKey] in [BmpContextCache]
+///
+/// # Safety
+/// `opaque_context_cache` should be not null and point to valid data
+///
+/// This function does not consume the `opaque_context_cache` pointer
 #[no_mangle]
-pub extern "C" fn netgauze_bmp_context_cache_delete(
+pub unsafe extern "C" fn netgauze_bmp_context_cache_delete(
     opaque_context_cache: *mut Opaque<BmpContextCache>,
     context_cache_key: BmpContextCacheKey,
 ) {
@@ -58,6 +77,7 @@ pub extern "C" fn netgauze_bmp_context_cache_delete(
 make_default!(Opaque<BmpParsingContext>, Opaque_BmpParsingContext);
 free_rust_raw_box!(Opaque<BmpParsingContext>, Opaque_BmpParsingContext);
 
+/// This function does not consume the `bmp_parsing_context` and `bmp_message_value_opaque` pointers
 #[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parsing_context_add_default(
@@ -72,6 +92,7 @@ pub extern "C" fn netgauze_bmp_parsing_context_add_default(
     bmp_parsing_context.add_peer(key, Default::default());
 }
 
+/// This function does not consume the `bmp_parsing_context` pointer
 #[allow(clippy::not_unsafe_ptr_arg_deref)] // The pointer is not null by contract
 #[no_mangle]
 pub extern "C" fn netgauze_bmp_parsing_context_delete(
@@ -101,6 +122,8 @@ mod test {
         let ctx = netgauze_make_Opaque_BmpParsingContext();
         let mut peer: bmp_peer = unsafe { std::mem::zeroed() };
 
-        netgauze_bmp_context_cache_set(cache, &mut peer, ctx);
+        unsafe {
+            netgauze_bmp_context_cache_set(cache, &mut peer, ctx);
+        }
     }
 }
