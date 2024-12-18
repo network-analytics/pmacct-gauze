@@ -1,8 +1,9 @@
-use crate::extensions::add_path::AddPathCapabilityValue::{Both, ReceiveOnly, SendOnly};
+use crate::extensions::add_path::AddPathCapabilityValue::{Both, ReceiveOnly, SendOnly, Unset};
 use netgauze_iana::address_family::AddressType;
 use pmacct_gauze_bindings::convert::TryConvertInto;
 use pmacct_gauze_bindings::{afi_t, cap_per_af, safi_t};
 use std::collections::HashMap;
+use netgauze_bgp_pkt::capabilities::AddPathAddressFamily;
 
 #[repr(u8)]
 pub enum AddPathCapabilityValue {
@@ -10,6 +11,22 @@ pub enum AddPathCapabilityValue {
     ReceiveOnly = 1,
     SendOnly = 2,
     Both = 3,
+}
+
+impl From<&AddPathAddressFamily> for AddPathCapabilityValue {
+    fn from(value: &AddPathAddressFamily) -> Self {
+        Self::from_bool(value.send(), value.receive())
+    }
+}
+impl AddPathCapabilityValue {
+    pub fn from_bool(send: bool, receive: bool) -> Self {
+        match (send, receive) {
+            (true, true) => Both,
+            (true, false) => SendOnly,
+            (false, true) => ReceiveOnly,
+            (false, false) => Unset,
+        }
+    }
 }
 
 pub trait AddPathCapability {

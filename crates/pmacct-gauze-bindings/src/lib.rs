@@ -6,6 +6,7 @@ pub use bindings::*;
 
 pub mod convert;
 pub mod print;
+pub mod utils;
 
 /// Impl this trait on a struct to make zeroed values of the struct
 /// Useful for initializing complex C structs quickly
