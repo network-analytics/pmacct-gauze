@@ -1,9 +1,9 @@
 use crate::extensions::add_path::AddPathCapabilityValue::{Both, ReceiveOnly, SendOnly, Unset};
+use netgauze_bgp_pkt::capabilities::AddPathAddressFamily;
 use netgauze_iana::address_family::AddressType;
 use pmacct_gauze_bindings::convert::TryConvertInto;
 use pmacct_gauze_bindings::{afi_t, cap_per_af, safi_t};
 use std::collections::HashMap;
-use netgauze_bgp_pkt::capabilities::AddPathAddressFamily;
 
 #[repr(u8)]
 pub enum AddPathCapabilityValue {

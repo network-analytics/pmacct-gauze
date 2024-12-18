@@ -17,7 +17,9 @@ use crate::extensions::add_path::AddPathCapabilityValue;
 use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
 use pmacct_gauze_bindings::utils::cap_per_af::PerAddressTypeCapability;
-use pmacct_gauze_bindings::{bgp_peer, cap_4as, cap_per_af, cap_per_af_u16, host_addr, in_addr, BGP_AS_TRANS};
+use pmacct_gauze_bindings::{
+    bgp_peer, cap_4as, cap_per_af, cap_per_af_u16, host_addr, in_addr, BGP_AS_TRANS,
+};
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -52,7 +54,7 @@ pub struct BgpOpenInfo {
 /// `bgp_peer` should be not null and point to valid data
 #[no_mangle]
 pub unsafe extern "C" fn netgauze_bgp_process_open(
-    bgp_msg: *const Opaque<BgpMessage>
+    bgp_msg: *const Opaque<BgpMessage>,
 ) -> BgpOpenProcessResult {
     let bgp_msg = unsafe { bgp_msg.as_ref().unwrap().as_ref() };
 
@@ -71,7 +73,10 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
         hold_time: open.hold_time(),
         bgp_id: host_addr::from(&open.bgp_id()),
         capability_mp_protocol: std::mem::zeroed(),
-        capability_as4: cap_4as { used: false, as4: 0 },
+        capability_as4: cap_4as {
+            used: false,
+            as4: 0,
+        },
         capability_add_paths: std::mem::zeroed(),
         capability_route_refresh: false,
         capability_ext_nh_enc_data: std::mem::zeroed(),
@@ -83,7 +88,10 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
     for capability in open_params {
         match capability {
             BgpCapability::MultiProtocolExtensions(mp_ext) => {
-                match result.capability_mp_protocol.set_value(mp_ext.address_type(), u8::from(true)) {
+                match result
+                    .capability_mp_protocol
+                    .set_value(mp_ext.address_type(), u8::from(true))
+                {
                     Ok(_) => {}
                     Err(err) => {
                         pmacct_log(
@@ -103,9 +111,15 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
                 };
             }
             BgpCapability::AddPath(addpath) => {
-                let iter = addpath.address_families().iter().map(|add_path_address_family| {
-                    (add_path_address_family.address_type(), AddPathCapabilityValue::from(add_path_address_family) as u8)
-                });
+                let iter = addpath
+                    .address_families()
+                    .iter()
+                    .map(|add_path_address_family| {
+                        (
+                            add_path_address_family.address_type(),
+                            AddPathCapabilityValue::from(add_path_address_family) as u8,
+                        )
+                    });
                 let (ok, errs) = cap_per_af::from_iter(iter);
 
                 for err in errs {
@@ -124,9 +138,10 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
                 result.capability_route_refresh = true;
             }
             BgpCapability::ExtendedNextHopEncoding(extended_nexthop_encoding) => {
-                let iter = extended_nexthop_encoding.encodings().iter().map(|encoding| {
-                    (encoding.address_type(), encoding.next_hop_afi() as u16)
-                });
+                let iter = extended_nexthop_encoding
+                    .encodings()
+                    .iter()
+                    .map(|encoding| (encoding.address_type(), encoding.next_hop_afi() as u16));
 
                 let (ok, errs) = cap_per_af_u16::from_iter(iter);
 
@@ -140,7 +155,6 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
                     );
                 }
                 result.capability_ext_nh_enc_data = ok;
-
             }
             BgpCapability::EnhancedRouteRefresh
             | BgpCapability::CiscoRouteRefresh
@@ -181,15 +195,15 @@ pub extern "C" fn netgauze_bgp_open_write_result_err_str(
         BgpOpenWriteError::WrongBgpMessageTypeError(_) => c_str! {
             "BgpOpenWriteError::WrongBgpMessageTypeError"
         }
-            .as_ptr(),
+        .as_ptr(),
         BgpOpenWriteError::MyAsnTooHighForRemotePeer => c_str! {
             "BgpOpenWriteError::MyAsnTooHighForRemotePeer"
         }
-            .as_ptr(),
+        .as_ptr(),
         BgpOpenWriteError::Asn4CapabilityFoundInOpenRxButNotInPeer => c_str! {
             "BgpOpenWriteError::PeerStateDoesNotMatchOpenRxMessage"
         }
-            .as_ptr(),
+        .as_ptr(),
         BgpOpenWriteError::NetgauzeWriteError { err_str } => err_str,
     }
 }

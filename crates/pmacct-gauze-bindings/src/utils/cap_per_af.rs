@@ -10,8 +10,8 @@ pub struct AddressTypeNotSupported(pub AddressType);
 pub trait PerAddressTypeCapability<T> {
     fn from_iter<I>(iterator: I) -> (Self, Vec<AddressTypeNotSupported>)
     where
-        I: IntoIterator<Item=(AddressType, T)>,
-        Self: Sized
+        I: IntoIterator<Item = (AddressType, T)>,
+        Self: Sized,
     {
         let mut ok: Self = unsafe { std::mem::zeroed() };
         let mut errs = Vec::new();
@@ -29,15 +29,21 @@ pub trait PerAddressTypeCapability<T> {
         (ok, errs)
     }
 
-    fn set_value(&mut self, address_type: AddressType, value: T) -> Result<(), AddressTypeNotSupported>;
+    fn set_value(
+        &mut self,
+        address_type: AddressType,
+        value: T,
+    ) -> Result<(), AddressTypeNotSupported>;
 }
 
 impl PerAddressTypeCapability<u8> for cap_per_af {
-    fn set_value(&mut self, address_type: AddressType, value: u8) -> Result<(), AddressTypeNotSupported> {
+    fn set_value(
+        &mut self,
+        address_type: AddressType,
+        value: u8,
+    ) -> Result<(), AddressTypeNotSupported> {
         let (afi, safi) = match address_type.try_convert_to() {
-            Ok((afi, safi)) => {
-                (afi, safi)
-            }
+            Ok((afi, safi)) => (afi, safi),
             Err(_) => {
                 return Err(AddressTypeNotSupported(address_type));
             }
@@ -53,11 +59,13 @@ impl PerAddressTypeCapability<u8> for cap_per_af {
 }
 
 impl PerAddressTypeCapability<u16> for cap_per_af_u16 {
-    fn set_value(&mut self, address_type: AddressType, value: u16) -> Result<(), AddressTypeNotSupported> {
+    fn set_value(
+        &mut self,
+        address_type: AddressType,
+        value: u16,
+    ) -> Result<(), AddressTypeNotSupported> {
         let (afi, safi) = match address_type.try_convert_to() {
-            Ok((afi, safi)) => {
-                (afi, safi)
-            }
+            Ok((afi, safi)) => (afi, safi),
             Err(_) => {
                 return Err(AddressTypeNotSupported(address_type));
             }
@@ -72,37 +80,39 @@ impl PerAddressTypeCapability<u16> for cap_per_af_u16 {
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
     use crate::utils::cap_per_af::{AddressTypeNotSupported, PerAddressTypeCapability};
     use crate::{cap_per_af, AFI_IP, AFI_IP6, SAFI_MPLS_VPN, SAFI_UNICAST};
     use netgauze_bgp_pkt::capabilities::AddPathAddressFamily;
-    use netgauze_iana::address_family::AddressType::{BgpLsVpn, Ipv4MplsLabeledVpn, Ipv4Unicast, Ipv6MplsLabeledVpn, Ipv6Unicast};
+    use netgauze_iana::address_family::AddressType::{
+        BgpLsVpn, Ipv4MplsLabeledVpn, Ipv4Unicast, Ipv6MplsLabeledVpn, Ipv6Unicast,
+    };
 
     #[test]
     pub fn test_address_type_conversion() {
-        let add_path = vec![
+        let add_path = [
             AddPathAddressFamily::new(Ipv4Unicast, false, false), // 0
             AddPathAddressFamily::new(Ipv4MplsLabeledVpn, false, true), // 1
-            AddPathAddressFamily::new(Ipv6Unicast, true, false), // 2
+            AddPathAddressFamily::new(Ipv6Unicast, true, false),  // 2
             AddPathAddressFamily::new(Ipv6MplsLabeledVpn, true, true), // 3
-            AddPathAddressFamily::new(BgpLsVpn, true, true) // Error
+            AddPathAddressFamily::new(BgpLsVpn, true, true),      // Error
         ];
 
-        let iter = add_path
-            .iter()
-            .map(|add_path_address_family|
-                (
-                    add_path_address_family.address_type(),
-                    match (add_path_address_family.send(), add_path_address_family.receive()) {
-                        (false, false) => 0,
-                        (false, true) => 1,
-                        (true, false) => 2,
-                        (true, true) => 3,
-                    }
-                )
-            );
+        let iter = add_path.iter().map(|add_path_address_family| {
+            (
+                add_path_address_family.address_type(),
+                match (
+                    add_path_address_family.send(),
+                    add_path_address_family.receive(),
+                ) {
+                    (false, false) => 0,
+                    (false, true) => 1,
+                    (true, false) => 2,
+                    (true, true) => 3,
+                },
+            )
+        });
 
         let (ok, err) = cap_per_af::from_iter(iter);
         assert_eq!(ok.afi_max, AFI_IP6 as u16);
