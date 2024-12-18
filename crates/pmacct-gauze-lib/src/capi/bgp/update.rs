@@ -553,11 +553,21 @@ pub(crate) fn process_attributes(
             | PathAttributeValue::Aggregator(_)
             | PathAttributeValue::Originator(_)
             | PathAttributeValue::ClusterList(_)
-            | PathAttributeValue::BgpLs(_) => {}
-            PathAttributeValue::UnknownAttribute(_) => pmacct_log(
+            | PathAttributeValue::BgpLs(_)
+            | PathAttributeValue::PrefixSegmentIdentifier(_) => pmacct_log(
                 LogPriority::Warning,
                 &format!(
                     "[pmacct-gauze] warn! attribute type {} is not supported by pmacct\n",
+                    _attr
+                        .path_attribute_type()
+                        .map(|__attr| __attr as u8)
+                        .unwrap_or_else(|unknown| unknown)
+                ),
+            ),
+            PathAttributeValue::UnknownAttribute(_) => pmacct_log(
+                LogPriority::Warning,
+                &format!(
+                    "[pmacct-gauze] warn! attribute type {} is not supported by netgauze\n",
                     _attr
                         .path_attribute_type()
                         .map(|__attr| __attr as u8)

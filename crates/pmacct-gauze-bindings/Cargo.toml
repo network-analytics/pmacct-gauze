@@ -15,8 +15,8 @@ quote = "1.0.33"
 phf = "0.11.2"
 ipnet = { version = "2.9.0", features = [] }
 libc = "0.2.149"
-netgauze-bgp-pkt = { version = "0.4.1" }
-netgauze-iana = { version = "0.4.1" }
+netgauze-bgp-pkt = { version = "0.5.0" }
+netgauze-iana = { version = "0.5.0" }
 chrono = "0.4.32"
 
 [features]

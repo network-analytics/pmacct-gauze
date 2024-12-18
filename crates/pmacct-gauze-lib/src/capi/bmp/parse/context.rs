@@ -7,7 +7,6 @@ use pmacct_gauze_bindings::bmp_peer;
 
 use crate::context_cache::ContextCache;
 use crate::extensions::bmp_message::ExtendBmpMessage;
-use crate::extensions::context::ExtendBmpParsingContext;
 use crate::opaque::Opaque;
 use crate::{free_rust_raw_box, make_default};
 
