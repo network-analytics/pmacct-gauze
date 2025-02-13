@@ -4,11 +4,10 @@ current_dir=$(pwd)
 source_dir=$1
 target_dir=$2
 
-if [ -z "$1" ]
+if [ -z "$2" ]
   then
     target_dir="/usr/local/include/pmacct"
 fi
-
 
 echo "This script will clear $target_dir and move all .h files from $source_dir into it while preserving the tree structure"
 
