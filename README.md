@@ -38,7 +38,6 @@ cd .. # Back to root
 cargo install --git https://github.com/mxyns/cargo-c cargo-c
 
 # Clone and install pmacct-gauze
-# Here you will need to already be logged in, or login since the repository is private 
 git clone https://github.com/mxyns/pmacct-gauze
 cd pmacct-gauze
 
@@ -58,7 +57,11 @@ cd .. # Back to root
 # Manually cleanup the pmacct repository 
 cd pmacct && rm -rf src/external_libs/libcdada
 
-# Configure and install pmacct, but with pmacct-gauze enabled now  
+# Configure and install pmacct, but with pmacct-gauze enabled now
+# cargo cinstall has installed the headers and library files in some directory (a default or custom one) of your OS
+# You need to ensure that pkg-config is configured to find those files on your machine:
+# - Ubuntu everything works by default.
+# - Debian: export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig
 ./configure --enable-pmacct-gauze # Add whatever other flags you need here
 make -j8 install
 ```
@@ -67,6 +70,12 @@ make -j8 install
 
 Docker images can be built
 from [Dockerfile](https://github.com/mxyns/pmacct/blob/netgauze-exp/docker/pmacct-gauze-base/Dockerfile)
+You will need to have pmacct-gauze cloned in pmacct/docker:
+```
+git clone --recurse-submodules -b netgauze-exp https://github.com/mxyns/pmacct
+git clone https://github.com/mxyns/pmacct-gauze pmacct/docker/pmacct-gauze
+cd pmacct; docker build -f docker/pmacct-gauze-base/Dockerfile .
+```
 
 ## Conventions
 
