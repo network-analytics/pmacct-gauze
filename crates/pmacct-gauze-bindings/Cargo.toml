@@ -6,10 +6,8 @@ edition = "2021"
 build = "build.rs"
 
 [build-dependencies]
-bindgen = { git = "https://github.com/mxyns/rust-bindgen", branch = "extended-callbacks", version = "0.70.1" }
 bindgen-bridge = { git = "https://github.com/mxyns/bindgen-bridge" }
 phf_codegen = { version = "0.11.2", optional = true }
-quote = "1.0.33"
 
 [dependencies]
 phf = "0.11.2"

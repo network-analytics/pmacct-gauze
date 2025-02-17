@@ -7,6 +7,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use bindgen_bridge::bindgen;
 use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
 use bindgen_bridge::import::{NameMappings, NameMappingsCallback};
 
