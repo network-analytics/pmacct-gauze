@@ -6,7 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [build-dependencies]
-bindgen-bridge = { git = "https://github.com/mxyns/bindgen-bridge" }
+bindgen-bridge = { git = "https://github.com/network-analytics/bindgen-bridge" }
 phf_codegen = { version = "0.11.2", optional = true }
 
 [dependencies]

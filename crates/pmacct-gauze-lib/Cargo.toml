@@ -7,7 +7,7 @@ build = "build.rs"
 
 [build-dependencies]
 pmacct-gauze-bindings = { path = "../pmacct-gauze-bindings", features = ["static-renames"] }
-bindgen-bridge = { git = "https://github.com/mxyns/bindgen-bridge" }
+bindgen-bridge = { git = "https://github.com/network-analytics/bindgen-bridge" }
 
 [dependencies]
 libc = "0.2.148"
