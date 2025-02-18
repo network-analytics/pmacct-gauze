@@ -1,7 +1,7 @@
 use crate::{host_addr, in_addr};
 use libc::{c_int, AF_INET, AF_INET6};
 use std::fmt::{Debug, Display, Error, Formatter};
-use std::intrinsics::transmute;
+use std::mem::transmute;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 impl Display for in_addr {

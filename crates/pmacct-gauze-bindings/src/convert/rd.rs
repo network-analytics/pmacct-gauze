@@ -1,4 +1,4 @@
-use std::intrinsics::transmute;
+use std::mem::transmute;
 use std::net::Ipv4Addr;
 
 use netgauze_bgp_pkt::nlri::RouteDistinguisher;
