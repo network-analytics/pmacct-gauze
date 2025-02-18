@@ -4,7 +4,7 @@ Rust library using FFI to bring [NetGauze](https://github.com/netgauze/netgauze)
 into [pmacct](https://github.com/pmacct/pmacct).
 
 This is still very experimental. The fork of pmacct with the pmacct-gauze integration can be found
-at https://github.com/mxyns/pmacct/tree/netgauze-exp.
+at https://github.com/network-analytics/pmacct/tree/netgauze-exp.
 
 ## How to use
 
@@ -19,7 +19,7 @@ at https://github.com/mxyns/pmacct/tree/netgauze-exp.
 Read and then run this.
 
 ```bash
-git clone --recurse-submodules -b netgauze-exp https://github.com/mxyns/pmacct/ 
+git clone --recurse-submodules -b netgauze-exp https://github.com/network-analytics/pmacct/ 
 cd pmacct
 
 # Install libcdada manually. libcdada headers are needed for the pmacct headers to be valid
@@ -35,10 +35,10 @@ cd ../../.. # Back to pmacct
 cd .. # Back to root
 
 # Install my fork of [cargo-c](https://crates.io/crates/cargo-c)
-cargo install --git https://github.com/mxyns/cargo-c cargo-c
+cargo install --git https://github.com/network-analytics/cargo-c cargo-c
 
 # Clone and install pmacct-gauze
-git clone https://github.com/mxyns/pmacct-gauze
+git clone https://github.com/network-analytics/pmacct-gauze
 cd pmacct-gauze
 
 # /!\ IMPORTANT /!\
@@ -69,11 +69,11 @@ make -j8 install
 #### Docker
 
 Docker images can be built
-from [Dockerfile](https://github.com/mxyns/pmacct/blob/netgauze-exp/docker/pmacct-gauze-base/Dockerfile)
+from [Dockerfile](https://github.com/network-analytics/pmacct/blob/netgauze-exp/docker/pmacct-gauze-base/Dockerfile)
 You will need to have pmacct-gauze cloned in pmacct/docker:
 ```
-git clone --recurse-submodules -b netgauze-exp https://github.com/mxyns/pmacct
-git clone https://github.com/mxyns/pmacct-gauze pmacct/docker/pmacct-gauze
+git clone --recurse-submodules -b netgauze-exp https://github.com/network-analytics/pmacct
+git clone https://github.com/network-analytics/pmacct-gauze pmacct/docker/pmacct-gauze
 cd pmacct; docker build -f docker/pmacct-gauze-base/Dockerfile .
 ```
 

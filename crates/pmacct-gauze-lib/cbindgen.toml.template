@@ -16,5 +16,5 @@ expand = ["pmacct-gauze-lib"]
 
 [enum]
 prefix_with_name = true
-# This requires the fork cargo-c https://github.com/mxyns/cargo-c
+# This requires the fork cargo-c https://github.com/network-analytics/cargo-c
 merge_generic_tags = true

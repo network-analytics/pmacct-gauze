@@ -29,7 +29,7 @@ jobs:
       # Step 2: Clone the pmacct project and checkout netgauze-exp branch
       - name: Clone pmacct repository on branch netgauze-exp
         run: |
-          git clone --recurse-submodules -b netgauze-exp https://github.com/mxyns/pmacct/
+          git clone --recurse-submodules -b netgauze-exp https://github.com/network-analytics/pmacct/
 
       # Step 3: Set up C environment (libcdada and pmacct dependencies)
       - name: Install Dependencies
@@ -79,7 +79,7 @@ jobs:
       # Step 7: Install your custom fork of cargo-c
       - name: Install cargo-c
         run: |
-          cargo install --git https://github.com/mxyns/cargo-c cargo-c
+          cargo install --git https://github.com/network-analytics/cargo-c cargo-c
 
       # Step 8: Build pmacct-gauze
       - name: Build pmacct-gauze
