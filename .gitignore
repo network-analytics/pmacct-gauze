@@ -1,3 +1,5 @@
 /target
 /crates/pmacct-gauze-lib/Cargo.lock
 .cargo/config.toml
+/build-target
+Cargo.lock

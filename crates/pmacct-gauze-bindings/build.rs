@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
 use std::fs::OpenOptions;
@@ -20,6 +20,34 @@ impl ParseCallbacks for IgnoreMacros {
             MacroParsingBehavior::Ignore
         } else {
             MacroParsingBehavior::Default
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ChangeTypeName(HashMap<String, TypeNameReplacement>);
+
+#[derive(Debug)]
+struct TypeNameReplacement {
+    template:String,
+    counter:RefCell<usize>,
+    magic_number:usize
+}
+
+impl ParseCallbacks for ChangeTypeName {
+    fn item_name(&self, _original_item_name: &str) -> Option<String> {
+        match self.0.get(&String::from(_original_item_name)) {
+            Some(TypeNameReplacement { template, counter, magic_number }) => {
+                let mut counter = counter.borrow_mut();
+                *counter += 1;
+                if *counter < *magic_number {
+                    Some(format!("{}", template.clone()))
+                }
+                else {
+                    Some(format!("{}1", template.clone()))
+                }
+            },
+            None => None
         }
     }
 }
@@ -50,6 +78,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect(),
     );
 
+    let change_types = ChangeTypeName(
+        HashMap::from(
+            [
+                ("cdada_list_t".into(), TypeNameReplacement {template:"cdada_list_t".into(), counter:RefCell::new(0), magic_number:14})
+            ]
+        )   
+    );
+
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));
     let name_mappings_cb = Box::new(NameMappingsCallback(name_mappings.clone()));
 
@@ -68,6 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .parse_callbacks(Box::new(ignored_macros))
         .parse_callbacks(name_mappings_cb)
+        .parse_callbacks(Box::new(change_types))
         .allowlist_file(format!("{header_location}/pmacct/src/pmacct.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/pmacct-defines.h"))
         .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp_logdump.h"))

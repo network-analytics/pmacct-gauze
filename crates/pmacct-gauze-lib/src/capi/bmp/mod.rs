@@ -81,6 +81,7 @@ pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
                     type_: tlv.get_type().into(),
                     len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
                     val: tlv.get_value_ptr(),
+                    index:0 
                 })
             }
 
@@ -95,6 +96,7 @@ pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
                     type_: tlv.get_type().into(),
                     len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
                     val: tlv.get_value_ptr(),
+                    index:0
                 })
             }
 
@@ -109,6 +111,7 @@ pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
                     type_: tlv.get_type().into(),
                     len: (tlv.len() - TerminationInformation::BASE_LENGTH) as u16,
                     val: tlv.get_value_ptr(),
+                    index:0
                 })
             }
 
