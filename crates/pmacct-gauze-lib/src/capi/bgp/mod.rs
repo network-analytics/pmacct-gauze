@@ -49,23 +49,6 @@ impl<T> From<WrongBgpMessageTypeError> for CResult<T, WrongBgpMessageTypeError> 
     }
 }
 
-#[repr(transparent)]
-struct DebugUpdateType(u32);
-
-impl Debug for DebugUpdateType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} ({})",
-            match self.0 {
-                BGP_NLRI_UPDATE => "BGP_NLRI_UPDATE",
-                BGP_NLRI_WITHDRAW => "BGP_NLRI_WITHDRAW",
-                _ => "BGP_NLRI_UNDEFINED",
-            },
-            self.0
-        )
-    }
-}
 
 /// Rewrite of [aspath_reconcile_as4]
 /// # Safety

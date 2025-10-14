@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // bindings for.
         .header("imported.h")
         .clang_arg(format!("-I{header_location}"))
-        .clang_arg("-D PMACCT_GAUZE_BUILD")
+        // .clang_arg("-D PMACCT_GAUZE_BUILD")
         .clang_arg(clang_args)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
