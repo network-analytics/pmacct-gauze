@@ -169,14 +169,6 @@ pub unsafe extern "C" fn netgauze_bmp_peer_hdr_get_data(
             is_out: u_int8_t::from(peer_hdr.is_out().unwrap_or(false)),
             is_loc: u_int8_t::from(peer_hdr.is_loc()),
             rib_type: peer_hdr.rib_type().map(u8::from).unwrap_or(0),
-            rd: peer_hdr
-                .rd()
-                .map(|rd| {
-                    let mut rd = rd_t::from(rd);
-                    rd.set_pmacct_rd_origin(RdOriginType::BMP);
-                    rd
-                })
-                .unwrap_or_else(rd_t::default_zeroed),
             tlvs: ptr::null_mut(), // TODO only used in bmp RM, make a Rust function like for init and fill field in C
             pd: peer_hdr
                 .rd()

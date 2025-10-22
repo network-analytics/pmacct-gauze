@@ -114,7 +114,7 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
         bgp_id: host_addr::from(&open.bgp_id()),
         capability_mp_protocol: std::mem::zeroed(),
         capability_as4: cap_4as {
-            used: false,
+            is_used: false,
             as4: 0,
         },
         capability_add_paths: std::mem::zeroed(),
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
             }
             BgpCapability::FourOctetAs(asn4) => {
                 result.capability_as4 = cap_4as {
-                    used: true,
+                    is_used: true,
                     as4: asn4.asn4(),
                 };
             }
@@ -294,14 +294,14 @@ pub unsafe extern "C" fn netgauze_bgp_open_write_reply(
 
     // Find the ASN and the AS4 if we have one
     let (my_as, as4_cap) = if bgp_peer.myas > u16::MAX as u32 {
-        if !bgp_peer.cap_4as.used {
+        if !bgp_peer.cap_4as.is_used {
             return CResult::Err(BgpOpenWriteError::MyAsnTooHighForRemotePeer);
         }
         (BGP_AS_TRANS as u16, Some(open_rx.my_asn4()))
     } else {
         (
             bgp_peer.myas as u16,
-            if bgp_peer.cap_4as.used {
+            if bgp_peer.cap_4as.is_used {
                 Some(open_rx.my_asn4())
             } else {
                 None

@@ -427,7 +427,7 @@ pub(crate) fn process_attributes(
                         peer,
                         bytes.as_ptr() as *mut i8,
                         bytes.len(),
-                        i32::from(peer.read().cap_4as.used),
+                        i32::from(peer.read().cap_4as.is_used),
                     )
                 };
 
@@ -452,7 +452,7 @@ pub(crate) fn process_attributes(
                         peer,
                         bytes.as_ptr() as *mut i8,
                         bytes.len(),
-                        peer.read().cap_4as.used as i32,
+                        peer.read().cap_4as.is_used as i32,
                     )
                 };
 
