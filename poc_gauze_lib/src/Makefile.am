@@ -8,4 +8,4 @@ ACLOCAL_AMFLAGS = -I m4
 lib_LTLIBRARIES = libparse.la
 libparse_la_SOURCES = parsing.c
 libparse_la_LDFLAGS = -version-info 1:0:0 -no-undefined -module -avoid-version -export-dynamic
-libparse_la_LIBADD = -lpmacct_gauze_lib
+libparse_la_LIBADD = -l:libpmacct_gauze_lib.a
