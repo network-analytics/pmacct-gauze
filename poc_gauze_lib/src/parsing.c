@@ -58,7 +58,7 @@ int bgp_parse_msg(struct bgp_peer *peer, time_t now, int online) {
   bmd.peer = peer;
 
   for (bgp_packet_ptr = peer->buf.base; peer->msglen > 0; peer->msglen -= bgp_len, bgp_packet_ptr += bgp_len) {
-    Log(LOG_INFO, "INFO ( %s/%s ): [%s] PARSING BGP WITH NETGAUZE.\n",
+    Log(LOG_INFO, "INFO ( %s/%s ): PARSING BGP WITH NETGAUZE.\n",
             config.name, bms->log_str);
     BgpParseResult parse_result = netgauze_bgp_parse_packet_with_context(bgp_packet_ptr, peer->msglen, bgp_parsing_context_get(peer));
 
@@ -286,8 +286,12 @@ int ng_bgp_process_msg_open(struct bgp_msg_data *bmd, const Opaque_BgpMessage *b
       
       /* TODO : CHANGE THE NULL POINTER TO THE CORRECT POINTER AND/OR IMPLEMENT THIS IN NETGAUZE*/
       bgp_reply_ptr += ng_bgp_write_open_msg(bgp_reply_pkt, BGP_BUFFER_SIZE, peer, bgp_msg);
+      Log(LOG_INFO, "INFO ( %s/%s ): GOT THROUGH WRITE_OPEN_MSG\n", config.name,
+          bms->log_str);
       /* sticking a KEEPALIVE to it */
       bgp_reply_ptr += bgp_write_keepalive_msg(bgp_reply_ptr);
+      Log(LOG_INFO, "INFO ( %s/%s ): GOT THROUGH WRITING KEEPALIVE\n", config.name,
+          bms->log_str);
       peer->last_keepalive = now;
       return send(peer->fd, bgp_reply_pkt, bgp_reply_ptr - bgp_reply_pkt, 0);
     }
@@ -477,7 +481,7 @@ u_int32_t bmp_process_packet(char *bmp_packet, u_int32_t len, struct bmp_peer *b
   if (!bms) return FALSE;
 
   for (msg_start_len = pkt_remaining_len = len; pkt_remaining_len; msg_start_len = pkt_remaining_len) {
-    Log(LOG_INFO, "INFO ( %s/%s ): [%s] PROCESSING BMP WITH NETGAUZE.\n",
+    Log(LOG_INFO, "INFO ( %s/%s ): PROCESSING BMP WITH NETGAUZE.\n",
             config.name, bms->log_str);
     BmpParseResult parse_result = netgauze_bmp_parse_packet_with_context(bmp_packet_ptr, pkt_remaining_len,
                                                                          bmp_parsing_context_get(bmpp));
@@ -1042,7 +1046,7 @@ void ng_bmp_process_msg_route_mirror(struct bmp_peer *bmpp) {
 
 int bmp_peer_init(struct bmp_peer *bmpp, int type)
 {
-  Log(LOG_INFO, "INFO ( %s/%s ): [%s] INITIALIZING BMP WITH NETGAUZE.\n",
+  Log(LOG_INFO, "INFO ( %s ):  INITIALIZING BMP WITH NETGAUZE.\n",
             config.name);
   int ret;
 
@@ -1062,7 +1066,7 @@ int bmp_peer_init(struct bmp_peer *bmpp, int type)
 
 void bmp_peer_close(struct bmp_peer *bmpp, int type)
 {
-  Log(LOG_INFO, "INFO ( %s/%s ): [%s] CLOSING BMP WITH NETGAUZE.\n",
+  Log(LOG_INFO, "INFO ( %s ): CLOSING BMP WITH NETGAUZE.\n",
             config.name);
   struct bgp_misc_structs *bms;
   struct bgp_peer *peer;
