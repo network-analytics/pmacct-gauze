@@ -2,7 +2,6 @@ ARG BUILD_REGISTRY=
 
 FROM ${BUILD_REGISTRY:+${BUILD_REGISTRY}/}pmacct-build-image AS build-stage
 
-WORKDIR /tmp/pmacct-gauze
 
 
 RUN apt-get update && apt-get install -y \
@@ -40,15 +39,19 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     clang
 
+WORKDIR /tmp/pmacct/src/external_libs/libcdada/
+
+RUN autoreconf -fi && ./configure && make install && make clean
+
+RUN ldconfig
+
 RUN rustup toolchain install nightly
 
 RUN rustup default nightly
 
 RUN cargo install --git https://github.com/network-analytics/cargo-c cargo-c
 
-RUN cp -r /tmp/pmacct/src/external_libs/libcdada/include/* /usr/include/
-RUN ldconfig
-
+WORKDIR /tmp/pmacct-gauze
 COPY . .
 
 RUN cargo clean
@@ -56,7 +59,7 @@ RUN cargo clean
 RUN PMACCT_INCLUDE_DIR="/tmp" cargo cinstall -vv --package pmacct-gauze-lib
 RUN ldconfig
 
-WORKDIR /root/pmacct-gauze/poc_gauze_lib
+WORKDIR /tmp/pmacct-gauze/poc_gauze_lib
 
 RUN autoreconf -fi
 
