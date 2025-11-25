@@ -51,7 +51,7 @@ RUN rustup default nightly
 
 RUN cargo install --git https://github.com/network-analytics/cargo-c cargo-c
 
-WORKDIR /tmp/pmacct-gauze
+WORKDIR /usr/pmacct-gauze
 COPY . .
 
 RUN cargo clean
@@ -59,12 +59,15 @@ RUN cargo clean
 RUN PMACCT_INCLUDE_DIR="/tmp" cargo cinstall -vv --package pmacct-gauze-lib
 RUN ldconfig
 
-WORKDIR /tmp/pmacct-gauze/poc_gauze_lib
+WORKDIR /usr/pmacct-gauze/poc_gauze_lib
 
 RUN autoreconf -fi
 
 RUN ./configure
 
 RUN PMACCT_INCLUDE_DIR="/tmp/pmacct/src" make
+
+
+CMD ["/bin/bash"]
 
 # COPY --from=0 /tmp/pmacct-gauze/poc_gauze_lib/src/.libs/libparse.so /
