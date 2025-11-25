@@ -114,6 +114,8 @@ int ng_bgp_write_open_msg(char *msg, int buff_len, struct bgp_peer *peer, const 
   char my_id_static[] = "1.2.3.4";
   struct host_addr my_id_addr, bgp_ip, bgp_id;
 
+  Log(LOG_INFO, "INFO ( %s ): bgp_daemon_ip = %p sizeof = %d.\n",
+      config.name, config.bgp_daemon_ip, sizeof(config));
   if (config.bgp_daemon_ip) str_to_addr(config.bgp_daemon_ip, &bgp_ip);
   else memset(&bgp_ip, 0, sizeof(bgp_ip));
 
@@ -608,7 +610,7 @@ void ng_bmp_process_msg_route_monitor(struct bmp_peer *bmpp, const ParsedBmp *ne
   bgp_msg_data_set_data_bmp(&bmed_bmp, &bdata);
 
   compose_timestamp(bms->log_tstamp_str, SRVBUFLEN, &bdata.tstamp, TRUE,
-                    config.timestamps_since_epoch, config.timestamps_rfc3339,
+                    config.timestamps_since_epoch, config.timestamps_rfc9557,
                     config.timestamps_utc);
 
   encode_tstamp_arrival(bms->log_tstamp_str, SRVBUFLEN, &bdata.tstamp_arrival, TRUE);

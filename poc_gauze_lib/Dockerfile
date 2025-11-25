@@ -61,6 +61,8 @@ RUN ldconfig
 
 WORKDIR /usr/pmacct-gauze/poc_gauze_lib
 
+RUN make clean
+
 RUN autoreconf -fi
 
 RUN ./configure
