@@ -59,6 +59,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .trim_end_matches(std::path::MAIN_SEPARATOR_STR);
 
     let clang_args = option_env!("PMACCT_CLANG_ARGS").unwrap_or("");
+    let build_cc = option_env!("BUILD_CC").unwrap_or("");
+    let build_cflags = option_env!("BUILD_CFLAGS").unwrap_or("");
+    let build_ldflags = option_env!("BUILD_LDFLAGS").unwrap_or("");
+    let build_libs = option_env!("BUILD_LIBS").unwrap_or("");
+
 
     println!("Running build.rs");
     println!("[config]");
@@ -99,6 +104,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .clang_arg(format!("-I{header_location}"))
         // .clang_arg("-D PMACCT_GAUZE_BUILD")
         .clang_arg(clang_args)
+        .clang_arg(build_cc)
+        .clang_arg(build_cflags)
+        .clang_arg(build_ldflags)
+        .clang_arg(build_libs)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

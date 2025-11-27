@@ -114,8 +114,8 @@ int ng_bgp_write_open_msg(char *msg, int buff_len, struct bgp_peer *peer, const 
   char my_id_static[] = "1.2.3.4";
   struct host_addr my_id_addr, bgp_ip, bgp_id;
 
-  Log(LOG_INFO, "INFO ( %s ): bgp_daemon_ip = %p sizeof = %d.\n",
-      config.name, config.bgp_daemon_ip, sizeof(config));
+  Log(LOG_INFO, "INFO ( %s ): bgp_daemon_ip = %p sizeof = %d.\n field offsets : \n - bgp_daemon_id : %d \n - promisc : %d \n - imt_plugin_path : %d \n - writer_id_string : %d\n",
+      config.name, config.bgp_daemon_ip, sizeof(config), offsetof(struct configuration, bgp_daemon_ip), offsetof(struct configuration, promisc), offsetof(struct configuration, imt_plugin_path), offsetof(struct configuration, writer_id_string));
   if (config.bgp_daemon_ip) str_to_addr(config.bgp_daemon_ip, &bgp_ip);
   else memset(&bgp_ip, 0, sizeof(bgp_ip));
 
