@@ -1,5 +1,5 @@
 # Compiler flags from pkg-config
-AM_CPPFLAGS = $(PGAUZE_CFLAGS) -I$(PMACCT_INCLUDE_DIR)
+AM_CPPFLAGS = $(PGAUZE_CFLAGS) -I$(PMACCT_INCLUDE_DIR) -I/usr/local/include/ndpi/
 AM_LDFLAGS  = $(PGAUZE_LIBS)
 
 ACLOCAL_AMFLAGS = -I m4

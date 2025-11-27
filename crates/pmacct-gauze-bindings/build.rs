@@ -107,7 +107,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .clang_arg(build_cc)
         .clang_arg(build_cflags)
         .clang_arg(build_ldflags)
-        .clang_arg(build_libs)
+        .clang_arg(format!("-I/usr/local/include/ndpi/"))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
