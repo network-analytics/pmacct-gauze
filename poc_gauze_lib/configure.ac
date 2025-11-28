@@ -18,7 +18,10 @@ LT_INIT  # initialize libtool for shared library support
 # Check for pkg-config dependency
 PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([PGAUZE], [pmacct_gauze_lib >= 0.1])
+PKG_CHECK_MODULES([PMACCT], [pmacct])
 
+AC_SUBST([PMACCT_CFLAGS])
+AC_SUBST([PMACCT_LIBS])
 
 
 # Substitute flags for Makefiles

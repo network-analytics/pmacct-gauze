@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -52,6 +52,19 @@ impl ParseCallbacks for ChangeTypeName {
     }
 }
 
+fn get_pmacct_keyvals(include_dir:&str) -> HashMap<String, String> {
+    let mut keyvals = HashMap::with_capacity(6);
+    match File::open(PathBuf::from(format!("{}/pmacct/src/buildflags.txt", include_dir))) {
+        Ok(mut file) => {
+            let mut data = String::with_capacity(512);
+            file.read_to_string(&mut data).expect("buildflags.txt file should be 100% UTF-8");
+
+        },
+        Err(error) => println!("Couldn't find pmacct file")
+    }
+    keyvals
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-env-changed=PMACCT_INCLUDE_DIR");
     let header_location = option_env!("PMACCT_INCLUDE_DIR")
@@ -61,13 +74,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     let clang_args = option_env!("PMACCT_CLANG_ARGS").unwrap_or("");
     let build_cc = option_env!("BUILD_CC").unwrap_or("");
     let build_cflags = option_env!("BUILD_CFLAGS").unwrap_or("");
+    let build_cppflags = option_env!("BUILD_CPPFLAGS").unwrap_or("");
     let build_ldflags = option_env!("BUILD_LDFLAGS").unwrap_or("");
     let build_libs = option_env!("BUILD_LIBS").unwrap_or("");
+    let build_defs = option_env!("BUILD_DEFS").unwrap_or("");
 
+    let pmacct_package = pkg_config::probe_library("pmacct").expect("Couldn't find pmacct pkg-config stuff");
+    let build_cflags = pmacct_package.include_paths.iter().map(|path| {format!("-I{}", path.to_string_lossy().to_string())});
+    let build_libs = pmacct_package.libs.iter().map(|lib| {format!("-l{}", lib)});
+    let build_ld_args = pmacct_package.ld_args.iter().map(|lib| {lib.concat()});
 
     println!("Running build.rs");
     println!("[config]");
     println!("PMACCT_INCLUDE_DIR = {header_location}");
+    println!("build_cflags = {}\nbuild_libs = {}\nbuild_ld_args = {}", build_cflags.clone().collect::<Vec<String>>().concat(), build_libs.clone().collect::<Vec<String>>().concat(), build_ld_args.clone().collect::<Vec<String>>().concat());
 
     // Ignore buggy macros
     let ignored_macros = IgnoreMacros(
@@ -102,12 +122,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         // bindings for.
         .header("imported.h")
         .clang_arg(format!("-I{header_location}"))
+        .clang_arg(format!("-L{header_location}/pmacct/src/external_libs/libcdada"))
+        .clang_arg(format!("-I{header_location}/pmacct/src/external_libs/libcdada/include"))
+        .clang_arg(format!("-I{header_location}/pmacct/src/external_libs/libcdada/include/cdada"))
         // .clang_arg("-D PMACCT_GAUZE_BUILD")
         .clang_arg(clang_args)
-        .clang_arg(build_cc)
-        .clang_arg(build_cflags)
-        .clang_arg(build_ldflags)
-        .clang_arg(format!("-I/usr/local/include/ndpi/"))
+        .clang_args(build_cflags)
+        .clang_args(build_ld_args)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

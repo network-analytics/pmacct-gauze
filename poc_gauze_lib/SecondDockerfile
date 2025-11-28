@@ -26,7 +26,7 @@ COPY . .
 
 RUN cargo clean
 
-RUN '.' /tmp/pmacct/src/buildflags.txt && PMACCT_INCLUDE_DIR="/tmp" cargo cinstall -vv --package pmacct-gauze-lib
+RUN PMACCT_INCLUDE_DIR="/tmp" cargo cinstall -vv --package pmacct-gauze-lib
 RUN ldconfig
 
 WORKDIR /usr/pmacct-gauze/poc_gauze_lib
@@ -35,7 +35,7 @@ RUN autoreconf -fi
 
 RUN ./configure 
 
-RUN '.' /tmp/pmacct/src/buildflags.txt && PMACCT_INCLUDE_DIR="/tmp/pmacct/src" make
+RUN PMACCT_INCLUDE_DIR="/tmp/pmacct/src" make
 
 
 CMD ["/bin/bash"]
