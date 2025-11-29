@@ -1,9 +1,7 @@
+use crate::cap_per_af;
 use crate::convert::TryConvertInto;
-use crate::{cap_per_af};
 use netgauze_iana::address_family::AddressType;
 use std::cmp::max;
-
-
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -59,8 +57,6 @@ impl PerAddressTypeCapability<u8> for cap_per_af {
         Ok(())
     }
 }
-
-
 
 #[cfg(test)]
 pub mod tests {

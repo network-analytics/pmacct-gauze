@@ -12,10 +12,9 @@ use pmacct_gauze_bindings::{
     community_new, ecommunity_add_val, ecommunity_intern, ecommunity_new, ecommunity_val,
     host_addr, in_addr, lcommunity_add_val, lcommunity_intern, lcommunity_new, lcommunity_val,
     path_id_t, prefix, rd_t, safi_t, DefaultZeroed, AFI_IP, BGP_BMAP_ATTR_AIGP,
-    BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC,
-    BGP_NLRI_WITHDRAW, SAFI_UNICAST,
+    BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, SAFI_UNICAST,
 };
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
@@ -85,7 +84,7 @@ free_cslice_t!(ProcessPacket);
 pub enum BgpNLRIUpdateType {
     Update,
     Withdraw,
-    EOR
+    EOR,
 }
 
 pub fn process_mp_unreach(

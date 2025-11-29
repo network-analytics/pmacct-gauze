@@ -4,9 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use netgauze_bgp_pkt::iana::BgpMessageType;
 use netgauze_bgp_pkt::BgpMessage;
 
-use pmacct_gauze_bindings::{
-    aspath, aspath_free, aspath_reconcile_as4, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW,
-};
+use pmacct_gauze_bindings::{aspath, aspath_free, aspath_reconcile_as4};
 
 use crate::cresult::CResult;
 use crate::opaque::Opaque;
@@ -48,7 +46,6 @@ impl<T> From<WrongBgpMessageTypeError> for CResult<T, WrongBgpMessageTypeError> 
         Self::Err(value)
     }
 }
-
 
 /// Rewrite of [aspath_reconcile_as4]
 /// # Safety

@@ -1,8 +1,8 @@
+use std::cmp::max;
 use std::ffi::{c_char, CString};
 use std::io::{BufWriter, Cursor};
 use std::net::Ipv4Addr;
 use std::slice;
-use std::cmp::max;
 
 use c_str_macro::c_str;
 use netgauze_bgp_pkt::capabilities::{
@@ -19,24 +19,25 @@ use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
 use netgauze_iana::address_family::AddressType;
 use pmacct_gauze_bindings::convert::TryConvertInto;
-use pmacct_gauze_bindings::utils::cap_per_af::{PerAddressTypeCapability, AddressTypeNotSupported};
+use pmacct_gauze_bindings::utils::cap_per_af::{AddressTypeNotSupported, PerAddressTypeCapability};
 
 use pmacct_gauze_bindings::{
-    bgp_peer, cap_4as, cap_per_af, host_addr, in_addr, BGP_AS_TRANS, afi_t, safi_t, AFI_MAX, SAFI_MAX
+    afi_t, bgp_peer, cap_4as, cap_per_af, host_addr, in_addr, safi_t, AFI_MAX, BGP_AS_TRANS,
+    SAFI_MAX,
 };
 
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct cap_per_af_u16 {
-    cap:[[u16 ; SAFI_MAX as usize] ; AFI_MAX as usize],
-    afi_max:afi_t,
-    safi_max:safi_t
+    cap: [[u16; SAFI_MAX as usize]; AFI_MAX as usize],
+    afi_max: afi_t,
+    safi_max: safi_t,
 }
 
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub enum YAhoo {
-    Test
+    Test,
 }
 
 impl PerAddressTypeCapability<u16> for cap_per_af_u16 {
