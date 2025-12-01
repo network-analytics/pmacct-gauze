@@ -5,13 +5,13 @@ This is a C library acting as glue between pmacct-gauze and pmacct and meant to 
 # How to build :
 
 - clone pmacct locally and install it (see [pmacct - Building](https://github.com/pmacct/pmacct?tab=readme-ov-file#building))
-- clone the pmacct-gauze repository : `git clone https://github.com/mxyns/pmacct-gauze`
+- clone the pmacct-gauze repository : `git clone https://github.com/mxyns/pmacct-gauze -b pmacct-gauze-rebased`
 - install pmacct-gauze (see the repository's root README)
 - in the `poc_gauze_lib` directory, build the library :
 ```bash
 autoreconf -fi
 ./configure
-PMACCT_INCLUDE_DIR="{path to pmacct root}/src/" make
+PMACCT_INCLUDE_DIR="{path to pmacct root}/src" make
 ```
 - after building the project, the library will be in `poc_gauze_lib/src/.libs/libparse.so`
 - to use this library as a custom parsing lib for pmacct at runtime, refer to pmacct documentation (in `pmacct/src/custom_packet_parsing/README.md`)

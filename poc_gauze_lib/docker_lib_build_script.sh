@@ -4,7 +4,7 @@ docker build --build-arg NUM_WORKERS=$(nproc) --target build-stage -t pmacct-bui
 
 TAG='_libparse_build'
 
-docker build --progress=plain -t libparse:$TAG -f $PGAUZE_ROOT_LOCATION/poc_gauze_lib/SecondDockerfile $PGAUZE_ROOT_LOCATION || exit $?
+docker build --progress=plain -t libparse:$TAG -f $PGAUZE_ROOT_LOCATION/poc_gauze_lib/Dockerfile $PGAUZE_ROOT_LOCATION || exit $?
 
 CONTAINER_ID=$(docker create libparse:$TAG)
 

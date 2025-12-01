@@ -1,70 +1,13 @@
 ARG BUILD_REGISTRY=
 
-FROM debian:trixie-slim AS build-stage
-
-COPY ci/dpkg.cfg.d/excludes /etc/dpkg/dpkg.cfg.d/excludes
-# This is not the runtime/final image:
-#   * we keep some installation steps in different layers to improve cachability
-#   * this only covers build deps
-RUN apt-get update && \
-  apt-get install -y \
-    build-essential \
-    autoconf \
-    automake \
-    bash \
-    bison \
-    cmake \
-    default-libmysqlclient-dev \
-    libnuma-dev \
-    flex \
-    gcc \
-    g++ \
-    git \
-    libcurl4-openssl-dev \
-    libjansson-dev \
-    libjson-c-dev \
-    libnetfilter-log-dev \
-    libpcap-dev \
-    libpq-dev \
-    libsnappy-dev \
-    libzstd-dev \
-    libsqlite3-dev \
-    libssl-dev \
-    libgnutls28-dev \
-    libnsl-dev \
-    libtool \
-    make \
-    pkg-config \
-    sudo \
-    wget \
-    zlib1g-dev
-
-WORKDIR /tmp/pmacct/
-# About to deal with deps installation
-COPY ci/deps.sh ci/
-# Parallelism: 2 looks a reasonable default, and bear in mind CI specs
-ARG NUM_WORKERS=2
-ENV MAKEFLAGS="-j${NUM_WORKERS}"
-# Do not check certificates in wget for external deps
-ARG DEPS_DONT_CHECK_CERTIFICATE
-RUN ./ci/deps.sh
+FROM ${BUILD_REGISTRY:+${BUILD_REGISTRY}/}pmacct-build-image AS build-stage
 
 
-# Actual build
-COPY . .
-RUN export AVRO_LIBS="-L/usr/local/avro/lib -lavro" && \
-  export AVRO_CFLAGS="-I/usr/local/avro/include" && \
-  ./autogen.sh && ./configure --enable-mysql --enable-pgsql     \
-                              --enable-sqlite3 --enable-kafka   \
-                              --enable-geoipv2 --enable-jansson \
-                              --enable-rabbitmq --enable-nflog  \
-                              --enable-ndpi --enable-zmq        \
-                              --enable-avro --enable-serdes     \
-                              --enable-redis --enable-gnutls    \
-                              --enable-unyte-udp-notif &&       \
-  make install
 
-RUN apt-get update && apt-get install -y curl rustup clang
+RUN apt-get update && apt-get install -y \
+    curl \
+    rustup \
+    clang
 
 WORKDIR /tmp/pmacct/src/external_libs/libcdada/
 
@@ -79,7 +22,7 @@ RUN rustup default nightly
 RUN cargo install --git https://github.com/network-analytics/cargo-c cargo-c
 
 WORKDIR /usr/pmacct-gauze
-COPY docker/pmacct-gauze/ .
+COPY . .
 
 RUN cargo clean
 
@@ -90,9 +33,9 @@ WORKDIR /usr/pmacct-gauze/poc_gauze_lib
 
 RUN autoreconf -fi
 
-RUN ./configure
+RUN ./configure 
 
-RUN PMACCT_INCLUDE_DIR="/tmp/pmacct/" make
+RUN PMACCT_INCLUDE_DIR="/tmp/pmacct/src" make
 
 
 CMD ["/bin/bash"]
