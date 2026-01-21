@@ -42,7 +42,7 @@ void bgp_parsing_context_clear(struct bgp_peer *bgp_peer) {
 }
 
 /* BGP START ---------------------------------------------------------------------------- */
-int bgp_parse_msg(struct bgp_peer *peer, time_t now, int online) {
+int bgp_parse_msg_hook(struct bgp_peer *peer, time_t now, int online) {
   struct bgp_misc_structs *bms;
   struct bgp_msg_data bmd;
   char *bgp_packet_ptr;
@@ -465,7 +465,7 @@ void bmp_parsing_context_clear(struct bmp_peer *bmp_peer) {
 }
 
 
-u_int32_t bmp_process_packet(char *bmp_packet, u_int32_t len, struct bmp_peer *bmpp, int *do_term) {
+u_int32_t bmp_process_packet_hook(char *bmp_packet, u_int32_t len, struct bmp_peer *bmpp, int *do_term) {
 
   struct bgp_misc_structs *bms;
   struct bgp_peer *peer;
@@ -1046,7 +1046,7 @@ void ng_bmp_process_msg_route_mirror(struct bmp_peer *bmpp) {
   // XXX: maybe support route mirroring
 }
 
-int bmp_peer_init(struct bmp_peer *bmpp, int type)
+int bmp_peer_init_hook(struct bmp_peer *bmpp, int type)
 {
   Log(LOG_INFO, "INFO ( %s/%s ): [%s] INITIALIZING BMP WITH NETGAUZE.\n",
             config.name, "xxx", "dynlib");
@@ -1066,7 +1066,7 @@ int bmp_peer_init(struct bmp_peer *bmpp, int type)
 
 
 
-void bmp_peer_close(struct bmp_peer *bmpp, int type)
+void bmp_peer_close_hook(struct bmp_peer *bmpp, int type)
 {
   Log(LOG_INFO, "INFO ( %s/%s ): [%s] CLOSING BMP WITH NETGAUZE.\n",
             config.name, "xxx", "yyy");

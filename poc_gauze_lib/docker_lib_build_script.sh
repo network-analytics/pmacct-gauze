@@ -12,6 +12,8 @@ docker cp $CONTAINER_ID:/usr/pmacct-gauze/poc_gauze_lib/src/.libs/libparse.so li
 
 docker cp $CONTAINER_ID:/tmp/pmacct/src/buildflags.txt buildflags.txt
 
+docker cp $CONTAINER_ID:/tmp/pmacct/Makefile inside_Makefile
+
 docker cp $CONTAINER_ID:/usr/local/lib/pkgconfig/pmacct.pc pmacct.pc
 
 mv libparse.so $PMACCT_ROOT_LOCATION/libparse.so
