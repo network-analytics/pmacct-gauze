@@ -47,5 +47,7 @@ poc_gauze_lib/config.h
 poc_gauze_lib/config.h.in
 poc_gauze_lib/ltmain.sh
 poc_gauze_lib/src/Makefile
-.gitignore
 poc_gauze_lib/Makefile
+poc_gauze_lib/libparse.so
+poc_gauze_lib/pmacct.pc
+poc_gauze_lib/inside_Makefile

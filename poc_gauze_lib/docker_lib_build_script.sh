@@ -16,6 +16,6 @@ docker cp $CONTAINER_ID:/tmp/pmacct/Makefile inside_Makefile
 
 docker cp $CONTAINER_ID:/usr/local/lib/pkgconfig/pmacct.pc pmacct.pc
 
-mv libparse.so $PMACCT_ROOT_LOCATION/libparse.so
+mv libparse.so $PMACCT_ROOT_LOCATION/test-framework/libparse.so
 
-$PMACCT_ROOT_LOCATION/test-framework/tools/pmacct_build/build_docker_images.sh -p libparse.so
+$PMACCT_ROOT_LOCATION/test-framework/tools/pmacct_build/build_docker_images.sh
