@@ -4,9 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use netgauze_bgp_pkt::iana::BgpMessageType;
 use netgauze_bgp_pkt::BgpMessage;
 
-use pmacct_gauze_bindings::{
-    aspath, aspath_free, aspath_reconcile_as4, BGP_NLRI_UPDATE, BGP_NLRI_WITHDRAW,
-};
+use pmacct_gauze_bindings::{aspath, aspath_free, aspath_reconcile_as4};
 
 use crate::cresult::CResult;
 use crate::opaque::Opaque;
@@ -46,24 +44,6 @@ impl Error for WrongBgpMessageTypeError {}
 impl<T> From<WrongBgpMessageTypeError> for CResult<T, WrongBgpMessageTypeError> {
     fn from(value: WrongBgpMessageTypeError) -> Self {
         Self::Err(value)
-    }
-}
-
-#[repr(transparent)]
-struct DebugUpdateType(u32);
-
-impl Debug for DebugUpdateType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} ({})",
-            match self.0 {
-                BGP_NLRI_UPDATE => "BGP_NLRI_UPDATE",
-                BGP_NLRI_WITHDRAW => "BGP_NLRI_WITHDRAW",
-                _ => "BGP_NLRI_UNDEFINED",
-            },
-            self.0
-        )
     }
 }
 

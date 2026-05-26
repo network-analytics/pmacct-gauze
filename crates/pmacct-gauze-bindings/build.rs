@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
 use std::fs::OpenOptions;
@@ -24,6 +24,37 @@ impl ParseCallbacks for IgnoreMacros {
     }
 }
 
+#[derive(Debug)]
+struct ChangeTypeName(HashMap<String, TypeNameReplacement>);
+
+#[derive(Debug)]
+struct TypeNameReplacement {
+    template: String,
+    counter: RefCell<usize>,
+    magic_number: usize,
+}
+
+impl ParseCallbacks for ChangeTypeName {
+    fn item_name(&self, _original_item_name: &str) -> Option<String> {
+        match self.0.get(&String::from(_original_item_name)) {
+            Some(TypeNameReplacement {
+                template,
+                counter,
+                magic_number,
+            }) => {
+                let mut counter = counter.borrow_mut();
+                *counter += 1;
+                if *counter < *magic_number {
+                    Some(format!("{}", template.clone()))
+                } else {
+                    Some(format!("{}1", template.clone()))
+                }
+            }
+            None => None,
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-env-changed=PMACCT_INCLUDE_DIR");
     let header_location = option_env!("PMACCT_INCLUDE_DIR")
@@ -32,9 +63,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let clang_args = option_env!("PMACCT_CLANG_ARGS").unwrap_or("");
 
+    let pmacct_package =
+        pkg_config::probe_library("pmacct").expect("Couldn't find pmacct pkg-config stuff");
+    let build_cflags = pmacct_package
+        .include_paths
+        .iter()
+        .map(|path| format!("-I{}", path.to_string_lossy().to_string()));
+    let build_libs_paths = pmacct_package
+        .link_paths
+        .iter()
+        .map(|lib_path| format!("-L{}", lib_path.to_string_lossy().to_string()));
+    let build_libs = pmacct_package.libs.iter().map(|lib| format!("-l{}", lib));
+    let build_ld_args = pmacct_package.ld_args.iter().map(|lib| lib.concat());
+
     println!("Running build.rs");
     println!("[config]");
     println!("PMACCT_INCLUDE_DIR = {header_location}");
+    println!(
+        "build_cflags = {}\nbuild_libs = {}\nbuild_ld_args = {}",
+        build_cflags.clone().collect::<Vec<String>>().concat(),
+        build_libs.clone().collect::<Vec<String>>().concat(),
+        build_ld_args.clone().collect::<Vec<String>>().concat()
+    );
 
     // Ignore buggy macros
     let ignored_macros = IgnoreMacros(
@@ -50,6 +100,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect(),
     );
 
+    let change_types = ChangeTypeName(HashMap::from([(
+        "cdada_list_t".into(),
+        TypeNameReplacement {
+            template: "cdada_list_t".into(),
+            counter: RefCell::new(0),
+            magic_number: 14,
+        },
+    )]));
+
     let name_mappings = Rc::new(RefCell::new(NameMappings::default()));
     let name_mappings_cb = Box::new(NameMappingsCallback(name_mappings.clone()));
 
@@ -60,28 +119,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         // The input header we would like to generate
         // bindings for.
         .header("imported.h")
-        .clang_arg(format!("-I{header_location}"))
-        .clang_arg("-D PMACCT_GAUZE_BUILD")
         .clang_arg(clang_args)
+        .clang_arg(format!("-I{header_location}"))
+        // .clang_arg("-D PMACCT_GAUZE_BUILD")
+        .clang_args(build_libs_paths)
+        .clang_args(build_cflags)
+        .clang_args(build_ld_args)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .parse_callbacks(Box::new(ignored_macros))
         .parse_callbacks(name_mappings_cb)
-        .allowlist_file(format!("{header_location}/pmacct/src/pmacct.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/pmacct-defines.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp_logdump.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bmp/bmp.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_util.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_packet.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_aspath.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_community.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_lcommunity.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/bgp/bgp_ecommunity.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/network.h"))
-        .allowlist_file(format!("{header_location}/pmacct/src/log.h"))
-        .blocklist_file("/usr/local/include/pmacct_gauze_lib/pmacct_gauze_lib.h")
+        .parse_callbacks(Box::new(change_types))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

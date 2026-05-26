@@ -6,7 +6,7 @@ impl Debug for bmp_data {
         let mut debug = f.debug_struct("bmp_data");
         debug.field("family", &self.family);
         debug.field("peer_ip", &self.peer_ip);
-        debug.field("bgp_id", &self.bgp_id);
+        debug.field("bgp_id", &self.chars.bgp_id);
         debug.field("peer_asn", &self.peer_asn);
         debug.field("chars", &self.chars);
         debug.field("tstamp", &self.tstamp);

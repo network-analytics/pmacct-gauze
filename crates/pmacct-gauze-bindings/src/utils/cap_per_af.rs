@@ -1,5 +1,5 @@
+use crate::cap_per_af;
 use crate::convert::TryConvertInto;
-use crate::{cap_per_af, cap_per_af_u16};
 use netgauze_iana::address_family::AddressType;
 use std::cmp::max;
 
@@ -41,28 +41,6 @@ impl PerAddressTypeCapability<u8> for cap_per_af {
         &mut self,
         address_type: AddressType,
         value: u8,
-    ) -> Result<(), AddressTypeNotSupported> {
-        let (afi, safi) = match address_type.try_convert_to() {
-            Ok((afi, safi)) => (afi, safi),
-            Err(_) => {
-                return Err(AddressTypeNotSupported(address_type));
-            }
-        };
-
-        // We know afi < AFI_MAX and safi < SAFI_MAX thanks to try_convert_to
-        self.cap[afi as usize][safi as usize] = value;
-        self.afi_max = max(self.afi_max, afi);
-        self.safi_max = max(self.safi_max, safi);
-
-        Ok(())
-    }
-}
-
-impl PerAddressTypeCapability<u16> for cap_per_af_u16 {
-    fn set_value(
-        &mut self,
-        address_type: AddressType,
-        value: u16,
     ) -> Result<(), AddressTypeNotSupported> {
         let (afi, safi) = match address_type.try_convert_to() {
             Ok((afi, safi)) => (afi, safi),

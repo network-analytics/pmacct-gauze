@@ -1,0 +1,6 @@
+BUILD_CC="gcc"
+BUILD_CFLAGS="-O2 -g -O2 -I/tmp/pmacct/src/external_libs/rootfs/include  -I/usr/include -lpcap  -I/tmp/pmacct/src"
+BUILD_LIBS="-lcdada -lstdc++ -lz -lnuma -lpcap  -ldl -lm -lpthread"
+BUILD_LDFLAGS="-L/tmp/pmacct/src/external_libs/rootfs/lib "
+BUILD_CPPFLAGS=""
+BUILD_DEFS="-DHAVE_CONFIG_H"

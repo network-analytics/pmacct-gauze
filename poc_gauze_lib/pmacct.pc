@@ -1,0 +1,10 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: pmacct
+Description: Build flags exported by project A
+Version: 1.7.10-git
+Cflags:  -I/usr/include/mariadb -I/usr/include/mariadb/mysql -I/usr/include/postgresql   -I/usr/local/include  -I/usr/local/include -DZMQ_BUILD_DRAFT_API=1  -I/usr/local/include -I/usr/include/x86_64-linux-gnu -isystem /usr/include/mit-krb5 -I/usr/include/p11-kit-1  -I/usr/local/include/hiredis -I/usr/local/include -D_FILE_OFFSET_BITS=64  -I/usr/include/p11-kit-1  -I/usr/local/include  -I/usr/local/include  -I/usr/local/avro/include  -I/usr/local/include/ndpi  -I/usr/local/include/ndpi/libndpi -I/usr/local/include/unyte-udp-notif 
+Libs: -lcdada -lstdc++ -lz -lnuma -lpcap  -ldl -lm -lpthread

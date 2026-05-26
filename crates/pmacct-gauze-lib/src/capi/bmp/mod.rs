@@ -8,9 +8,7 @@ use netgauze_bmp_pkt::iana::BmpMessageType;
 use netgauze_bmp_pkt::{BmpMessageValue, InitiationInformation, PeerKey, TerminationInformation};
 use netgauze_parse_utils::WritablePdu;
 
-use pmacct_gauze_bindings::{
-    bmp_chars, bmp_data, bmp_log_tlv, host_addr, rd_t, timeval, u_int8_t, DefaultZeroed,
-};
+use pmacct_gauze_bindings::{bmp_chars, bmp_data, bmp_log_tlv, host_addr, in_addr, rd_t, timeval, u_int8_t, DefaultZeroed};
 
 use crate::cresult::CResult;
 use crate::cslice::OwnedSlice;
@@ -81,6 +79,7 @@ pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
                     type_: tlv.get_type().into(),
                     len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
                     val: tlv.get_value_ptr(),
+                    index: 0,
                 })
             }
 
@@ -95,6 +94,7 @@ pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
                     type_: tlv.get_type().into(),
                     len: (tlv.len() - InitiationInformation::BASE_LENGTH) as u16,
                     val: tlv.get_value_ptr(),
+                    index: 0,
                 })
             }
 
@@ -109,6 +109,7 @@ pub unsafe extern "C" fn netgauze_bmp_get_tlvs(
                     type_: tlv.get_type().into(),
                     len: (tlv.len() - TerminationInformation::BASE_LENGTH) as u16,
                     val: tlv.get_value_ptr(),
+                    index: 0,
                 })
             }
 
@@ -156,9 +157,10 @@ pub unsafe extern "C" fn netgauze_bmp_peer_hdr_get_data(
             .as_ref()
             .map(host_addr::from)
             .unwrap_or_else(host_addr::default_ipv4),
-        bgp_id: host_addr::from(&peer_hdr.bgp_id()),
         peer_asn: peer_hdr.peer_as(),
         chars: bmp_chars {
+            groups: ptr::null_mut(),
+            bgp_id: in_addr::from(&peer_hdr.bgp_id()),
             peer_type: peer_hdr.peer_type().get_type() as u_int8_t,
             is_post: u_int8_t::from(peer_hdr.is_post().unwrap_or(false)),
             is_2b_asn: u_int8_t::from(!peer_hdr.is_asn4()),
@@ -166,7 +168,8 @@ pub unsafe extern "C" fn netgauze_bmp_peer_hdr_get_data(
             is_out: u_int8_t::from(peer_hdr.is_out().unwrap_or(false)),
             is_loc: u_int8_t::from(peer_hdr.is_loc()),
             rib_type: peer_hdr.rib_type().map(u8::from).unwrap_or(0),
-            rd: peer_hdr
+            tlvs: ptr::null_mut(), // TODO only used in bmp RM, make a Rust function like for init and fill field in C
+            pd: peer_hdr
                 .rd()
                 .map(|rd| {
                     let mut rd = rd_t::from(rd);
@@ -174,7 +177,6 @@ pub unsafe extern "C" fn netgauze_bmp_peer_hdr_get_data(
                     rd
                 })
                 .unwrap_or_else(rd_t::default_zeroed),
-            tlvs: ptr::null_mut(), // TODO only used in bmp RM, make a Rust function like for init and fill field in C
         },
         tstamp: peer_hdr
             .timestamp()

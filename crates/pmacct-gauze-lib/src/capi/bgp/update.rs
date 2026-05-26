@@ -12,15 +12,14 @@ use pmacct_gauze_bindings::{
     community_new, ecommunity_add_val, ecommunity_intern, ecommunity_new, ecommunity_val,
     host_addr, in_addr, lcommunity_add_val, lcommunity_intern, lcommunity_new, lcommunity_val,
     path_id_t, prefix, rd_t, safi_t, DefaultZeroed, AFI_IP, BGP_BMAP_ATTR_AIGP,
-    BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, BGP_NLRI_EOR, BGP_NLRI_UPDATE,
-    BGP_NLRI_WITHDRAW, SAFI_UNICAST,
+    BGP_BMAP_ATTR_LOCAL_PREF, BGP_BMAP_ATTR_MULTI_EXIT_DISC, SAFI_UNICAST,
 };
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::io::BufWriter;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ptr;
 
-use crate::capi::bgp::{reconcile_as24path, DebugUpdateType, WrongBgpMessageTypeError};
+use crate::capi::bgp::{reconcile_as24path, WrongBgpMessageTypeError};
 use crate::cresult::CResult;
 use crate::cslice::OwnedSlice;
 use crate::cslice::RustFree;
@@ -67,9 +66,10 @@ pub struct ParsedBgpUpdate {
     pub update_count: usize,
 }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct ProcessPacket {
-    update_type: u32,
+    update_type: BgpNLRIUpdateType,
     afi: afi_t,
     safi: safi_t,
     prefix: prefix,
@@ -79,19 +79,12 @@ pub struct ProcessPacket {
 
 free_cslice_t!(ProcessPacket);
 
-impl Debug for ProcessPacket {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut debug = f.debug_struct("ProcessPacket");
-
-        debug.field("update_type", &DebugUpdateType(self.update_type));
-        debug.field("prefix", &self.prefix);
-        debug.field("attr", &self.attr);
-        debug.field("attr_extra", &self.attr_extra);
-        debug.field("afi", &self.afi);
-        debug.field("safi", &self.safi);
-
-        debug.finish()
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum BgpNLRIUpdateType {
+    Update,
+    Withdraw,
+    EOR,
 }
 
 pub fn process_mp_unreach(
@@ -118,7 +111,7 @@ pub fn process_mp_unreach(
         }
     };
 
-    let update_type = BGP_NLRI_WITHDRAW;
+    let update_type = BgpNLRIUpdateType::Withdraw;
 
     match mp_unreach {
         // pmacct only has AFI IPv4/6 & BGP-LS
@@ -251,7 +244,7 @@ pub fn process_mp_reach(
         }
     };
 
-    let update_type = BGP_NLRI_UPDATE;
+    let update_type = BgpNLRIUpdateType::Update;
 
     match mp_reach {
         // pmacct only has AFI IPv4/6 & BGP-LS
@@ -433,7 +426,7 @@ pub(crate) fn process_attributes(
                         peer,
                         bytes.as_ptr() as *mut i8,
                         bytes.len(),
-                        i32::from(peer.read().cap_4as.used),
+                        i32::from(peer.read().cap_4as.is_used),
                     )
                 };
 
@@ -458,7 +451,7 @@ pub(crate) fn process_attributes(
                         peer,
                         bytes.as_ptr() as *mut i8,
                         bytes.len(),
-                        peer.read().cap_4as.used as i32,
+                        peer.read().cap_4as.is_used as i32,
                     )
                 };
 
@@ -609,7 +602,7 @@ pub unsafe extern "C" fn netgauze_bgp_update_get_updates(
     // Handle Basic Updates
     for nlri in update.nlri() {
         packets.push(ProcessPacket {
-            update_type: BGP_NLRI_UPDATE,
+            update_type: BgpNLRIUpdateType::Update,
             prefix: prefix::from(&nlri.network().address()),
             attr,
             attr_extra,
@@ -621,7 +614,7 @@ pub unsafe extern "C" fn netgauze_bgp_update_get_updates(
     // Handle Basic Withdraws
     for withdraw in update.withdraw_routes() {
         packets.push(ProcessPacket {
-            update_type: BGP_NLRI_WITHDRAW,
+            update_type: BgpNLRIUpdateType::Withdraw,
             prefix: prefix::from(&withdraw.network().address()),
             attr,
             attr_extra,
@@ -648,7 +641,7 @@ pub unsafe extern "C" fn netgauze_bgp_update_get_updates(
             safi_t::try_convert_from(address_type.subsequent_address_family()),
         ) {
             packets.push(ProcessPacket {
-                update_type: BGP_NLRI_EOR,
+                update_type: BgpNLRIUpdateType::EOR,
                 afi,
                 safi,
                 prefix: prefix::from(&Ipv4Net::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()), // This field should not be used
@@ -670,7 +663,7 @@ pub unsafe extern "C" fn netgauze_bgp_update_get_updates(
     BgpUpdateResult::Ok(ParsedBgpUpdate {
         update_count: packets
             .iter()
-            .filter(|x| x.update_type == BGP_NLRI_UPDATE)
+            .filter(|x| x.update_type == BgpNLRIUpdateType::Update)
             .count(),
         packets: OwnedSlice::from_vec(packets),
     })

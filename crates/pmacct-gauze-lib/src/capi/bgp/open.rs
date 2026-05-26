@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::ffi::{c_char, CString};
 use std::io::{BufWriter, Cursor};
 use std::net::Ipv4Addr;
@@ -16,10 +17,50 @@ use crate::cresult::CResult;
 use crate::extensions::add_path::AddPathCapabilityValue;
 use crate::log::{pmacct_log, LogPriority};
 use crate::opaque::Opaque;
-use pmacct_gauze_bindings::utils::cap_per_af::PerAddressTypeCapability;
+use netgauze_iana::address_family::AddressType;
+use pmacct_gauze_bindings::convert::TryConvertInto;
+use pmacct_gauze_bindings::utils::cap_per_af::{AddressTypeNotSupported, PerAddressTypeCapability};
+
 use pmacct_gauze_bindings::{
-    bgp_peer, cap_4as, cap_per_af, cap_per_af_u16, host_addr, in_addr, BGP_AS_TRANS,
+    afi_t, bgp_peer, cap_4as, cap_per_af, host_addr, in_addr, safi_t, AFI_MAX, BGP_AS_TRANS,
+    SAFI_MAX,
 };
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct cap_per_af_u16 {
+    cap: [[u16; SAFI_MAX as usize]; AFI_MAX as usize],
+    afi_max: afi_t,
+    safi_max: safi_t,
+}
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub enum YAhoo {
+    Test,
+}
+
+impl PerAddressTypeCapability<u16> for cap_per_af_u16 {
+    fn set_value(
+        &mut self,
+        address_type: AddressType,
+        value: u16,
+    ) -> Result<(), AddressTypeNotSupported> {
+        let (afi, safi) = match address_type.try_convert_to() {
+            Ok((afi, safi)) => (afi, safi),
+            Err(_) => {
+                return Err(AddressTypeNotSupported(address_type));
+            }
+        };
+
+        // We know afi < AFI_MAX and safi < SAFI_MAX thanks to try_convert_to
+        self.cap[afi as usize][safi as usize] = value;
+        self.afi_max = max(self.afi_max, afi);
+        self.safi_max = max(self.safi_max, safi);
+
+        Ok(())
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -74,7 +115,7 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
         bgp_id: host_addr::from(&open.bgp_id()),
         capability_mp_protocol: std::mem::zeroed(),
         capability_as4: cap_4as {
-            used: false,
+            is_used: false,
             as4: 0,
         },
         capability_add_paths: std::mem::zeroed(),
@@ -106,7 +147,7 @@ pub unsafe extern "C" fn netgauze_bgp_process_open(
             }
             BgpCapability::FourOctetAs(asn4) => {
                 result.capability_as4 = cap_4as {
-                    used: true,
+                    is_used: true,
                     as4: asn4.asn4(),
                 };
             }
@@ -254,14 +295,14 @@ pub unsafe extern "C" fn netgauze_bgp_open_write_reply(
 
     // Find the ASN and the AS4 if we have one
     let (my_as, as4_cap) = if bgp_peer.myas > u16::MAX as u32 {
-        if !bgp_peer.cap_4as.used {
+        if !bgp_peer.cap_4as.is_used {
             return CResult::Err(BgpOpenWriteError::MyAsnTooHighForRemotePeer);
         }
         (BGP_AS_TRANS as u16, Some(open_rx.my_asn4()))
     } else {
         (
             bgp_peer.myas as u16,
-            if bgp_peer.cap_4as.used {
+            if bgp_peer.cap_4as.is_used {
                 Some(open_rx.my_asn4())
             } else {
                 None

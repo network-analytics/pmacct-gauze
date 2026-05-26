@@ -8,6 +8,7 @@ build = "build.rs"
 [build-dependencies]
 bindgen-bridge = { git = "https://github.com/network-analytics/bindgen-bridge" }
 phf_codegen = { version = "0.11.2", optional = true }
+pkg-config = "0.3.32"
 
 [dependencies]
 phf = "0.11.2"
